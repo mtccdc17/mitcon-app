@@ -1,14 +1,13 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getUser, getProfile } from '@/lib/supabase/cached'
 import Link from 'next/link'
-import { LogOut, LayoutDashboard, DollarSign, Shield } from 'lucide-react'
+import { LayoutDashboard, DollarSign, Shield } from 'lucide-react'
 
 export default async function CeoLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
+  const profile = await getProfile(user.id)
   if (!profile || profile.role !== 'ceo') redirect('/dashboard')
 
   return (

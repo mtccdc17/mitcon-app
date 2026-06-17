@@ -1,36 +1,25 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getUser, getProfile } from '@/lib/supabase/cached'
 import { formatVNDShort } from '@/lib/utils'
 import { UserRole } from '@/lib/types'
 import { Building2, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react'
 
-async function getDashboardData(role: UserRole) {
-  const supabase = await createClient()
+export default async function DashboardPage() {
+  const user = await getUser()
+  if (!user) redirect('/login')
 
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
+
+  const role = profile.role as UserRole
+
+  const supabase = await createClient()
   const [{ data: projects }, { data: transactions }, { data: revenue }] = await Promise.all([
     supabase.from('projects').select('id, name, customer_name, status').eq('status', 'active'),
     supabase.from('transactions').select('amount, vat_amount, tncn_amount, payment_status, project_id'),
     supabase.from('revenue').select('amount, status, project_id'),
   ])
-
-  return { projects: projects ?? [], transactions: transactions ?? [], revenue: revenue ?? [] }
-}
-
-export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) redirect('/login')
-
-  const role = profile.role as UserRole
-  const { projects, transactions, revenue } = await getDashboardData(role)
 
   const totalRevenue = revenue.reduce((s, r) => s + (r.amount ?? 0), 0)
   const collectedRevenue = revenue.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUser, getProfile } from '@/lib/supabase/cached'
 import { redirect, notFound } from 'next/navigation'
 import { UserRole } from '@/lib/types'
 import { formatVND } from '@/lib/utils'
@@ -7,12 +8,13 @@ import ProjectDetail from './ProjectDetail'
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role, full_name, id').eq('id', user.id).single()
+  const profile = await getProfile(user.id)
   if (!profile) redirect('/login')
+
+  const supabase = await createClient()
 
   const { data: project } = await supabase
     .from('projects')
