@@ -10,6 +10,7 @@ export default async function InvoicesPage() {
   const profile = await getProfile(user.id)
   if (!profile) redirect('/login')
 
+  const supabase = await createClient()
   const { data: transactions } = await supabase
     .from('transactions')
     .select('*, projects(name), categories(name)')

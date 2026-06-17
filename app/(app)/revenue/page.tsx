@@ -14,6 +14,7 @@ export default async function RevenuePage() {
   const role = profile.role as UserRole
   const isCeo = role === 'ceo'
 
+  const supabase = await createClient()
   const { data: revenue } = await supabase
     .from('revenue')
     .select('*, projects(name)')

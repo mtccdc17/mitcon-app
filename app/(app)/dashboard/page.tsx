@@ -15,11 +15,14 @@ export default async function DashboardPage() {
   const role = profile.role as UserRole
 
   const supabase = await createClient()
-  const [{ data: projects }, { data: transactions }, { data: revenue }] = await Promise.all([
+  const [{ data: projectsRaw }, { data: txRaw }, { data: revRaw }] = await Promise.all([
     supabase.from('projects').select('id, name, customer_name, status').eq('status', 'active'),
     supabase.from('transactions').select('amount, vat_amount, tncn_amount, payment_status, project_id'),
     supabase.from('revenue').select('amount, status, project_id'),
   ])
+  const projects = projectsRaw ?? []
+  const transactions = txRaw ?? []
+  const revenue = revRaw ?? []
 
   const totalRevenue = revenue.reduce((s, r) => s + (r.amount ?? 0), 0)
   const collectedRevenue = revenue.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)
