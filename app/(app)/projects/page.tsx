@@ -15,16 +15,10 @@ export default async function ProjectsPage() {
   const role = profile.role as UserRole
   const canCreate = role === 'ceo' || role === 'ketoan'
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-
-  const { data: archived } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('status', 'archived')
+  const [{ data: projects }, { data: archived }] = await Promise.all([
+    supabase.from('projects').select('*').eq('status', 'active').order('created_at', { ascending: false }),
+    supabase.from('projects').select('id').eq('status', 'archived'),
+  ])
 
   return (
     <div className="space-y-6">
