@@ -5,8 +5,15 @@ import { UserRole } from '@/lib/types'
 import { formatVND } from '@/lib/utils'
 import ProjectDetail from './ProjectDetail'
 
-export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ edit?: string }>
+}) {
   const { id } = await params
+  const sp = searchParams ? await searchParams : {}
 
   const user = await getUser()
   if (!user) redirect('/login')
@@ -29,14 +36,22 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     { data: categories },
     { data: transactions },
     { data: revenue },
-    { data: auditLogs },
   ] = await Promise.all([
     supabase.from('contracts').select('*').eq('project_id', id),
     supabase.from('categories').select('*').eq('project_id', id).order('sort_order'),
     supabase.from('transactions').select('*, profiles(full_name, role)').eq('project_id', id).order('transaction_date', { ascending: false }),
     supabase.from('revenue').select('*').eq('project_id', id).order('created_at'),
-    supabase.from('audit_logs').select('*, profiles(full_name, role)').eq('transaction_id', id).order('changed_at', { ascending: false }).limit(50),
   ])
+
+  // Query audit_logs qua transaction IDs thuộc project này
+  const txIds = (transactions ?? []).map(t => t.id)
+  const { data: auditLogs } = txIds.length > 0
+    ? await supabase.from('audit_logs')
+        .select('*, profiles(full_name, role)')
+        .in('transaction_id', txIds)
+        .order('changed_at', { ascending: false })
+        .limit(100)
+    : { data: [] }
 
   return (
     <ProjectDetail
@@ -49,6 +64,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       role={profile.role as UserRole}
       userId={profile.id}
       userName={profile.full_name}
+      editTxId={sp.edit}
     />
   )
 }
