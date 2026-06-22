@@ -379,6 +379,7 @@ export default function ProjectDetail({
           onAddTx={(categoryId) => openTxModal(activeTab === 'vat' ? vatContract?.id ?? '' : noVatContract?.id ?? '', categoryId)}
           onAddCategory={() => setShowCatModal(true)}
           role={role}
+          userId={userId}
           canSeeHs={isCeo || isKetoan}
           txVerified={txVerified}
           toggleTxVerified={toggleTxVerified}
@@ -453,6 +454,8 @@ export default function ProjectDetail({
           tx={globalEditTx}
           categories={categories}
           isVat={globalEditTx.contract_id === vatContract?.id}
+          userId={userId}
+          role={role}
           onClose={() => {
             setGlobalEditTx(null)
             router.replace(`/projects/${project.id}`)
@@ -533,7 +536,7 @@ function EditContractValueModal({ contract, onClose }: { contract: Contract; onC
 
 function ContractTab({
   contract, categories, txByCategory, txByContract, isVat, canEdit,
-  expandedCats, toggleCat, onAddTx, onAddCategory, role,
+  expandedCats, toggleCat, onAddTx, onAddCategory, role, userId,
   canSeeHs, txVerified, toggleTxVerified
 }: {
   contract?: Contract
@@ -547,6 +550,7 @@ function ContractTab({
   onAddTx: (categoryId?: string) => void
   onAddCategory: () => void
   role: UserRole
+  userId: string
   canSeeHs: boolean
   txVerified: Record<string, boolean>
   toggleTxVerified: (id: string) => void
@@ -1178,6 +1182,8 @@ function ContractTab({
           tx={editTx}
           categories={categories}
           isVat={isVat}
+          userId={userId}
+          role={role}
           onClose={() => { setEditTx(null); router.refresh() }}
         />
       )}
@@ -1185,10 +1191,12 @@ function ContractTab({
   )
 }
 
-function EditTransactionModal({ tx, categories, isVat, onClose }: {
+function EditTransactionModal({ tx, categories, isVat, userId, role, onClose }: {
   tx: Transaction
   categories: Category[]
   isVat: boolean
+  userId: string
+  role: UserRole
   onClose: () => void
 }) {
   const supabase = createClient()
@@ -1201,7 +1209,7 @@ function EditTransactionModal({ tx, categories, isVat, onClose }: {
   const [vatRate, setVatRate] = useState<VatRate>(tx.vat_rate ?? 'no_vat')
   const [invoiceStatus, setInvoiceStatus] = useState<InvoiceStatus>(tx.invoice_status ?? 'no_invoice')
   const [invoiceNumber, setInvoiceNumber] = useState(tx.invoice_number ?? '')
-  const [laborContractStatus, setLaborContractStatus] = useState<ContractStatus>(tx.labor_contract_status ?? 'unsigned')
+  const [laborContractStatus, setLaborContractStatus] = useState<ContractStatus>(tx.labor_contract_status ?? 'not_signed')
   const [unit, setUnit] = useState(tx.unit ?? '')
   const [categoryId, setCategoryId] = useState(tx.category_id ?? '')
   const [supplier, setSupplier] = useState(tx.supplier ?? '')
@@ -1254,7 +1262,7 @@ function EditTransactionModal({ tx, categories, isVat, onClose }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const parsedAmount = parseInt(amount.replace(/[^\d]/g, ''), 10) || 0
+    const parsedAmount = parseInt(amount || '0', 10) || 0
     const vatAmount = (!tx.is_labor && isVat) ? calcVAT(parsedAmount, vatRate) : 0
     const tncnAmount = (tx.is_labor && isVat) ? calcTNCN(parsedAmount) : 0
 
@@ -1269,6 +1277,9 @@ function EditTransactionModal({ tx, categories, isVat, onClose }: {
       ? paymentHistory[paymentHistory.length - 1].date
       : (paymentDate || null)
 
+    const newLaborContractStatus = tx.is_labor ? laborContractStatus : tx.labor_contract_status
+    const newInvoiceStatus = !tx.is_labor ? invoiceStatus : tx.invoice_status
+
     await supabase.from('transactions').update({
       description,
       amount: parsedAmount,
@@ -1277,8 +1288,8 @@ function EditTransactionModal({ tx, categories, isVat, onClose }: {
       vat_rate: !tx.is_labor ? vatRate : tx.vat_rate,
       vat_amount: vatAmount,
       tncn_amount: tncnAmount,
-      invoice_status: !tx.is_labor ? invoiceStatus : tx.invoice_status,
-      labor_contract_status: tx.is_labor ? laborContractStatus : tx.labor_contract_status,
+      invoice_status: newInvoiceStatus,
+      labor_contract_status: newLaborContractStatus,
       unit,
       category_id: categoryId || tx.category_id,
       supplier: supplier || null,
@@ -1289,6 +1300,30 @@ function EditTransactionModal({ tx, categories, isVat, onClose }: {
       payment_history: paymentHistory.length > 0 ? paymentHistory : null,
       invoice_number: !tx.is_labor ? (invoiceNumber || null) : tx.invoice_number,
     }).eq('id', tx.id)
+
+    // Ghi audit log cho từng field thay đổi
+    const changes: { field_name: string; old_value: string; new_value: string }[] = []
+    if (description !== tx.description) changes.push({ field_name: 'description', old_value: tx.description ?? '', new_value: description })
+    if (parsedAmount !== tx.amount) changes.push({ field_name: 'amount', old_value: String(tx.amount), new_value: String(parsedAmount) })
+    if (finalStatus !== tx.payment_status) changes.push({ field_name: 'payment_status', old_value: tx.payment_status, new_value: finalStatus })
+    if (newLaborContractStatus !== tx.labor_contract_status) changes.push({ field_name: 'labor_contract_status', old_value: tx.labor_contract_status ?? '', new_value: newLaborContractStatus ?? '' })
+    if (newInvoiceStatus !== tx.invoice_status) changes.push({ field_name: 'invoice_status', old_value: tx.invoice_status ?? '', new_value: newInvoiceStatus ?? '' })
+    if (supplier !== (tx.supplier ?? '')) changes.push({ field_name: 'supplier', old_value: tx.supplier ?? '', new_value: supplier })
+    if (categoryId && categoryId !== tx.category_id) changes.push({ field_name: 'category_id', old_value: tx.category_id ?? '', new_value: categoryId })
+
+    if (changes.length > 0) {
+      await supabase.from('audit_logs').insert(
+        changes.map(c => ({
+          transaction_id: tx.id,
+          changed_by: userId,
+          changed_at: new Date().toISOString(),
+          field_name: c.field_name,
+          old_value: c.old_value,
+          new_value: c.new_value,
+          user_role: role,
+        }))
+      )
+    }
 
     onClose()
   }
@@ -1559,7 +1594,7 @@ function EditTransactionModal({ tx, categories, isVat, onClose }: {
               <select value={laborContractStatus} onChange={e => setLaborContractStatus(e.target.value as ContractStatus)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="signed">Có hợp đồng</option>
-                <option value="unsigned">Không hợp đồng</option>
+                <option value="not_signed">Không hợp đồng</option>
               </select>
             </div>
           )}
