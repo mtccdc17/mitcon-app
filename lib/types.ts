@@ -29,6 +29,9 @@ export interface Project {
   created_by?: string
   created_at: string
   updated_at: string
+  hs_khach?: boolean
+  hs_ncc?: boolean
+  hs_nhan_cong?: boolean
 }
 
 export interface Contract {
@@ -46,6 +49,12 @@ export interface Category {
   name: string
   sort_order: number
   created_at: string
+}
+
+export interface PaymentEntry {
+  amount: number
+  date: string
+  method: string
 }
 
 export interface Transaction {
@@ -69,6 +78,11 @@ export interface Transaction {
   labor_contract_status: ContractStatus
   payment_status: PaymentStatus
   payment_date?: string
+  next_payment_date?: string
+  payment_history?: PaymentEntry[] | null
+  kt_verified?: boolean
+  is_vat_allocation?: boolean
+  note?: string
   created_by?: string
   created_at: string
   updated_at: string
@@ -98,6 +112,19 @@ export interface Revenue {
   note?: string
   created_by?: string
   created_at: string
+}
+
+export interface Supplier {
+  id: string
+  name: string
+  tax_code?: string
+  cccd?: string
+  phone?: string
+  contact_person?: string
+  note?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface OperatingCost {
