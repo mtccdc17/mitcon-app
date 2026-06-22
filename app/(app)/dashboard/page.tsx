@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getUser, getProfile } from '@/lib/supabase/cached'
 import { formatVNDShort } from '@/lib/utils'
@@ -16,20 +17,23 @@ export default async function DashboardPage() {
 
   const supabase = await createClient()
   const [{ data: projectsRaw }, { data: txRaw }, { data: revRaw }] = await Promise.all([
-    supabase.from('projects').select('id, name, customer_name, status').eq('status', 'active'),
-    supabase.from('transactions').select('amount, vat_amount, tncn_amount, payment_status, project_id'),
+    supabase.from('projects').select('id, name, customer_name, status').in('status', ['active', 'completed']),
+    supabase.from('transactions').select('amount, vat_amount, tncn_amount, payment_status, project_id, is_vat_allocation'),
     supabase.from('revenue').select('amount, status, project_id'),
   ])
   const projects = projectsRaw ?? []
+  const activeProjects = projects.filter(p => p.status === 'active')
+  const completedProjects = projects.filter(p => p.status === 'completed')
   const transactions = txRaw ?? []
   const revenue = revRaw ?? []
 
   const totalRevenue = revenue.reduce((s, r) => s + (r.amount ?? 0), 0)
   const collectedRevenue = revenue.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)
-  const totalCost = transactions.reduce((s, t) => s + (t.amount ?? 0), 0)
+  const regularTx = transactions.filter(t => !t.is_vat_allocation)
+  const totalCost = regularTx.reduce((s, t) => s + (t.amount ?? 0), 0)
   const totalVAT = transactions.reduce((s, t) => s + (t.vat_amount ?? 0), 0)
-  const totalTNCN = transactions.reduce((s, t) => s + (t.tncn_amount ?? 0), 0)
-  const unpaidCost = transactions.filter(t => t.payment_status === 'pending').reduce((s, t) => s + t.amount, 0)
+  const totalTNCN = regularTx.reduce((s, t) => s + (t.tncn_amount ?? 0), 0)
+  const unpaidCost = regularTx.filter(t => t.payment_status === 'pending').reduce((s, t) => s + t.amount, 0)
 
   const isCeoOrKetoan = role === 'ceo' || role === 'ketoan'
 
@@ -46,7 +50,8 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Công trình đang chạy"
-          value={String(projects.length)}
+          value={String(activeProjects.length)}
+          sub={completedProjects.length > 0 ? `${completedProjects.length} đã hoàn thành` : undefined}
           icon={<Building2 size={18} className="text-blue-600" />}
           bg="bg-blue-50"
         />
@@ -102,12 +107,12 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Projects table */}
+      {/* Active projects table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="font-medium text-gray-900">Công trình đang hoạt động</h2>
         </div>
-        {projects.length === 0 ? (
+        {activeProjects.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-gray-400">
             Chưa có công trình nào.
           </div>
@@ -121,9 +126,11 @@ export default async function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {projects.map((p) => (
+              {activeProjects.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3 font-medium text-gray-900">{p.name}</td>
+                  <td className="px-5 py-3 font-medium">
+                    <Link href={`/projects/${p.id}`} className="text-gray-900 hover:text-blue-600 transition-colors">{p.name}</Link>
+                  </td>
                   <td className="px-5 py-3 text-gray-600 hidden md:table-cell">{p.customer_name}</td>
                   <td className="px-5 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
@@ -136,6 +143,39 @@ export default async function DashboardPage() {
           </table>
         )}
       </div>
+
+      {/* Completed projects table */}
+      {completedProjects.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="font-medium text-gray-900">Công trình vừa hoàn thành</h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-5 py-3 font-medium text-gray-500">Tên công trình</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">Khách hàng</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-500">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {completedProjects.map((p) => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-5 py-3 font-medium">
+                    <Link href={`/projects/${p.id}`} className="text-gray-900 hover:text-blue-600 transition-colors">{p.name}</Link>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 hidden md:table-cell">{p.customer_name}</td>
+                  <td className="px-5 py-3">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      Đã hoàn thành
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
