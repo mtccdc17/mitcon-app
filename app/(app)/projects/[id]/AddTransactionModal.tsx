@@ -132,8 +132,8 @@ export default function AddTransactionModal({
     const records: object[] = []
 
     if (mode === 'material' || mode === 'combined') {
-      const amount = parseInt(amountMaterial.replace(/[^\d]/g, '') || '0', 10)
-      if (amount > 0) {
+      const amount = parseInt(amountMaterial || '0', 10)
+      if (amount !== 0) {
         const vat_amount = calcVAT(amount, vatRate)
         const actualPaidMaterial =
           paymentStatus === 'paid' ? amount :
@@ -155,8 +155,8 @@ export default function AddTransactionModal({
     }
 
     if (mode === 'labor' || mode === 'combined') {
-      const amount = parseInt(amountLabor.replace(/[^\d]/g, '') || '0', 10)
-      if (amount > 0) {
+      const amount = parseInt(amountLabor || '0', 10)
+      if (amount !== 0) {
         const tncn_amount = calcTNCN(amount)
         const actualPaidLabor =
           paymentStatus === 'paid' ? amount :
@@ -403,17 +403,17 @@ export default function AddTransactionModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-blue-700 mb-1">Tiền vật tư (VND)</label>
-                <input type="number" min="0" step="1" value={amountMaterial} onChange={e => setAmountMaterial(e.target.value)}
+                <input type="number" step="1" value={amountMaterial} onChange={e => setAmountMaterial(e.target.value)}
                   className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
-                {amountMaterial && parseInt(amountMaterial) > 0 && (
+                {amountMaterial && parseInt(amountMaterial) !== 0 && (
                   <p className="text-xs text-blue-600 mt-0.5 font-medium">{formatVND(parseInt(amountMaterial))}</p>
                 )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-pink-700 mb-1">Tiền nhân công (VND)</label>
-                <input type="number" min="0" step="1" value={amountLabor} onChange={e => setAmountLabor(e.target.value)}
+                <input type="number" step="1" value={amountLabor} onChange={e => setAmountLabor(e.target.value)}
                   className="w-full px-3 py-2 border border-pink-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-400" placeholder="0" />
-                {amountLabor && parseInt(amountLabor) > 0 && (
+                {amountLabor && parseInt(amountLabor) !== 0 && (
                   <p className="text-xs text-pink-600 mt-0.5 font-medium">{formatVND(parseInt(amountLabor))}</p>
                 )}
               </div>
@@ -423,16 +423,16 @@ export default function AddTransactionModal({
               <label className="block text-xs font-medium text-gray-700 mb-1">Số tiền (VND) <span className="text-red-500">*</span></label>
               {mode === 'material'
                 ? <>
-                    <input type="number" required min="0" step="1" value={amountMaterial} onChange={e => setAmountMaterial(e.target.value)}
+                    <input type="number" required step="1" value={amountMaterial} onChange={e => setAmountMaterial(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
-                    {amountMaterial && parseInt(amountMaterial) > 0 && (
+                    {amountMaterial && parseInt(amountMaterial) !== 0 && (
                       <p className="text-xs text-gray-500 mt-0.5 font-medium">{formatVND(parseInt(amountMaterial))}</p>
                     )}
                   </>
                 : <>
-                    <input type="number" required min="0" step="1" value={amountLabor} onChange={e => setAmountLabor(e.target.value)}
+                    <input type="number" required step="1" value={amountLabor} onChange={e => setAmountLabor(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
-                    {amountLabor && parseInt(amountLabor) > 0 && (
+                    {amountLabor && parseInt(amountLabor) !== 0 && (
                       <p className="text-xs text-gray-500 mt-0.5 font-medium">{formatVND(parseInt(amountLabor))}</p>
                     )}
                   </>
