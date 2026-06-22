@@ -67,6 +67,8 @@ export default function ProjectDetail({
   const [txContractId, setTxContractId] = useState<string>('')
   const [txDefaultCategoryId, setTxDefaultCategoryId] = useState<string | undefined>(undefined)
   const [archiving, setArchiving] = useState(false)
+  const [projectStatus, setProjectStatus] = useState(project.status)
+  const [togglingStatus, setTogglingStatus] = useState(false)
   const [editContract, setEditContract] = useState<Contract | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [globalEditTx, setGlobalEditTx] = useState<Transaction | null>(null)
@@ -145,9 +147,18 @@ export default function ProjectDetail({
   const totalRevenue = revenue.reduce((s, r) => s + r.amount, 0)
   const collectedRevenue = revenue.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)
 
+  async function handleToggleStatus() {
+    if (!canArchive) return
+    const next = projectStatus === 'active' ? 'completed' : 'active'
+    setTogglingStatus(true)
+    const { error } = await supabase.from('projects').update({ status: next }).eq('id', project.id)
+    if (!error) setProjectStatus(next)
+    setTogglingStatus(false)
+  }
+
   async function handleArchive() {
     if (!canArchive) return
-    const confirmed = confirm('Đóng công trình này? Nó sẽ được chuyển vào lưu trữ và không hiển thị trên Dashboard.')
+    const confirmed = confirm('Lưu trữ công trình này? Nó sẽ không hiển thị trên Dashboard nữa.')
     if (!confirmed) return
     setArchiving(true)
     await supabase.from('projects').update({
@@ -193,9 +204,11 @@ export default function ProjectDetail({
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-semibold text-gray-900">{project.name}</h1>
               <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                project.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                projectStatus === 'active' ? 'bg-green-100 text-green-700'
+                : projectStatus === 'completed' ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-500'
               }`}>
-                {project.status === 'active' ? 'Đang chạy' : project.status === 'archived' ? 'Lưu trữ' : 'Hoàn thành'}
+                {projectStatus === 'active' ? 'Đang chạy' : projectStatus === 'archived' ? 'Lưu trữ' : 'Đã hoàn thành'}
               </span>
             </div>
             <p className="text-sm text-gray-500 mt-0.5">
@@ -211,7 +224,7 @@ export default function ProjectDetail({
             <Download size={14} />
             Xuất Excel
           </button>
-          {canEdit && project.status === 'active' && (
+          {canEdit && projectStatus === 'active' && (
             <button
               onClick={() => setShowImportModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
@@ -220,14 +233,28 @@ export default function ProjectDetail({
               Nhập Excel
             </button>
           )}
-          {canArchive && project.status === 'active' && (
+          {canArchive && projectStatus !== 'archived' && (
+            <button
+              onClick={handleToggleStatus}
+              disabled={togglingStatus}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-lg transition-colors disabled:opacity-50 ${
+                projectStatus === 'active'
+                  ? 'text-blue-600 border-blue-200 hover:bg-blue-50'
+                  : 'text-green-600 border-green-200 hover:bg-green-50'
+              }`}
+            >
+              <CheckCircle2 size={14} />
+              {togglingStatus ? '...' : projectStatus === 'active' ? 'Đánh dấu hoàn thành' : 'Đang chạy lại'}
+            </button>
+          )}
+          {canArchive && projectStatus !== 'archived' && (
             <button
               onClick={handleArchive}
               disabled={archiving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               <Archive size={14} />
-              Đóng & Lưu trữ
+              Lưu trữ
             </button>
           )}
         </div>
