@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { formatVND, formatVNDShort } from '@/lib/utils'
-import { Plus, ExternalLink } from 'lucide-react'
+import { Plus, ExternalLink, Pencil } from 'lucide-react'
 import AddRevenueEntryModal from './AddRevenueEntryModal'
+import EditRevenueModal from './EditRevenueModal'
 
 interface Project { id: string; name: string }
 interface ContractRow { id: string; project_id: string; value: number }
@@ -30,6 +31,7 @@ interface Props {
 export default function RevenueClient({ projects, contracts, revenue, isCeo, userId }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [defaultProjectId, setDefaultProjectId] = useState('')
+  const [editingEntry, setEditingEntry] = useState<RevenueRow | null>(null)
 
   const totalCollected = revenue.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)
   const totalPending = revenue.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
@@ -152,6 +154,7 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
                       <th className="text-left px-5 py-2.5 font-medium">Ngày thu</th>
                       <th className="text-left px-5 py-2.5 font-medium">Trạng thái</th>
                       <th className="text-left px-5 py-2.5 font-medium hidden md:table-cell">Hình thức</th>
+                      {isCeo && <th className="px-3 py-2.5" />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -191,6 +194,17 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
                           </span>
                         </td>
                         <td className="px-5 py-3 text-gray-500 hidden md:table-cell">{r.payment_method}</td>
+                        {isCeo && (
+                          <td className="px-3 py-3">
+                            <button
+                              onClick={() => setEditingEntry(r)}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -207,6 +221,14 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
           defaultProjectId={defaultProjectId}
           userId={userId}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {editingEntry && (
+        <EditRevenueModal
+          entry={editingEntry}
+          projects={projects}
+          onClose={() => setEditingEntry(null)}
         />
       )}
     </div>
