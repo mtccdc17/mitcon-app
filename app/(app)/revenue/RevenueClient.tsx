@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatVND, formatVNDShort } from '@/lib/utils'
-import { Plus, ExternalLink, Pencil } from 'lucide-react'
+import { Plus, ExternalLink, Pencil, Trash2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import AddRevenueEntryModal from './AddRevenueEntryModal'
 import EditRevenueModal from './EditRevenueModal'
 
@@ -37,12 +39,14 @@ function RevenueTable({
   qtValue,
   isCeo,
   onEdit,
+  onDelete,
 }: {
   entries: RevenueRow[]
   contractValue: number
   qtValue: number
   isCeo: boolean
   onEdit: (r: RevenueRow) => void
+  onDelete: (id: string, stage: string) => void
 }) {
   if (entries.length === 0) return (
     <p className="px-5 py-4 text-xs text-gray-400 italic">Chưa có đợt thu nào.</p>
@@ -60,12 +64,12 @@ function RevenueTable({
             <th className="text-left px-5 py-2.5 font-medium">Ngày thu</th>
             <th className="text-left px-5 py-2.5 font-medium">Trạng thái</th>
             <th className="text-left px-5 py-2.5 font-medium hidden md:table-cell">Hình thức</th>
-            {isCeo && <th className="px-3 py-2.5" />}
+            {isCeo && <th className="px-3 py-2.5 w-16" />}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
           {entries.map(r => (
-            <tr key={r.id} className="hover:bg-gray-50">
+            <tr key={r.id} className="hover:bg-gray-50 group">
               <td className="px-5 py-3 text-gray-900 font-medium">
                 {r.stage}
                 {r.note && <span className="ml-1.5 text-xs text-gray-400">({r.note})</span>}
@@ -98,13 +102,22 @@ function RevenueTable({
               <td className="px-5 py-3 text-gray-500 hidden md:table-cell">{r.payment_method}</td>
               {isCeo && (
                 <td className="px-3 py-3">
-                  <button
-                    onClick={() => onEdit(r)}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                    title="Chỉnh sửa"
-                  >
-                    <Pencil size={14} />
-                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => onEdit(r)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                      title="Chỉnh sửa"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      onClick={() => onDelete(r.id, r.stage)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                      title="Xóa đợt này"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </td>
               )}
             </tr>
@@ -116,12 +129,34 @@ function RevenueTable({
 }
 
 export default function RevenueClient({ projects, contracts, revenue, isCeo, userId }: Props) {
+  const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [defaultProjectId, setDefaultProjectId] = useState('')
   const [editingEntry, setEditingEntry] = useState<RevenueRow | null>(null)
 
   const totalCollected = revenue.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)
   const totalPending = revenue.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
+
+  async function deleteEntry(id: string, stage: string) {
+    if (!confirm(`Xóa đợt "${stage}"? Thao tác này không thể hoàn tác.`)) return
+    const supabase = createClient()
+    await supabase.from('revenue').delete().eq('id', id)
+    router.refresh()
+  }
+
+  async function deleteAllForProject(projectId: string, projectName: string) {
+    if (!confirm(`Xóa TẤT CẢ đợt thu của "${projectName}"?\nThao tác này không thể hoàn tác.`)) return
+    const supabase = createClient()
+    await supabase.from('revenue').delete().eq('project_id', projectId)
+    router.refresh()
+  }
+
+  async function deleteAllForContract(contractId: string, label: string) {
+    if (!confirm(`Xóa TẤT CẢ đợt thu của "${label}"?\nThao tác này không thể hoàn tác.`)) return
+    const supabase = createClient()
+    await supabase.from('revenue').delete().eq('contract_id', contractId)
+    router.refresh()
+  }
 
   const grouped = projects
     .map(project => {
@@ -132,7 +167,6 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
       const collected = entries.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)
       const pending = entries.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
 
-      // Build per-contract sub-groups when project has multiple contracts
       const contractGroups = hasMultiple
         ? projectContracts.map(contract => {
             const cEntries = entries.filter(r => r.contract_id === contract.id)
@@ -145,7 +179,12 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
           })
         : null
 
-      // Single-contract values
+      // Entries with no contract_id (or contract_id not matching any project contract)
+      const contractIds = new Set(projectContracts.map(c => c.id))
+      const unlinkedEntries = hasMultiple
+        ? entries.filter(r => !r.contract_id || !contractIds.has(r.contract_id))
+        : []
+
       const singleContractValue = !hasMultiple ? (projectContracts[0]?.value ?? 0) : 0
       const singleQtValue = !hasMultiple
         ? entries
@@ -153,7 +192,7 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
             .reduce((s, r) => s + r.amount, 0)
         : 0
 
-      return { project, entries, projectContracts, hasMultiple, contractGroups, singleContractValue, singleQtValue, collected, pending }
+      return { project, entries, projectContracts, hasMultiple, contractGroups, unlinkedEntries, singleContractValue, singleQtValue, collected, pending }
     })
     .filter(g => g.entries.length > 0)
 
@@ -208,7 +247,7 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
         </div>
       ) : (
         <div className="space-y-4">
-          {grouped.map(({ project, entries, projectContracts, hasMultiple, contractGroups, singleContractValue, singleQtValue, collected, pending }) => (
+          {grouped.map(({ project, entries, projectContracts, hasMultiple, contractGroups, unlinkedEntries, singleContractValue, singleQtValue, collected, pending }) => (
             <div key={project.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               {/* Project header */}
               <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
@@ -237,57 +276,96 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
                       Thêm đợt
                     </button>
                   )}
+                  {isCeo && entries.length > 0 && (
+                    <button
+                      onClick={() => deleteAllForProject(project.id, project.name)}
+                      className="flex items-center gap-1 px-2.5 py-1 border border-red-200 text-red-500 text-xs rounded-lg hover:bg-red-50"
+                      title="Xóa tất cả đợt thu của công trình này"
+                    >
+                      <Trash2 size={12} />
+                      Xóa tất cả
+                    </button>
+                  )}
                 </div>
               </div>
 
               {hasMultiple && contractGroups ? (
-                // Multiple contracts: show sub-sections per contract
-                contractGroups.map(({ contract, entries: cEntries, qtValue: cQt, collected: cColl, pending: cPend }) => (
-                  <div key={contract.id}>
-                    <div className="px-5 py-2 bg-gray-50/60 border-b border-gray-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                          contract.type === 'vat'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-gray-200 text-gray-600'
-                        }`}>
-                          {CONTRACT_LABEL[contract.type] ?? contract.type}
-                        </span>
-                        {isCeo && (
-                          <span className="text-xs text-gray-500">
-                            Giá trị HĐ: <span className="font-medium text-gray-700">{formatVND(contract.value)}</span>
+                <>
+                  {contractGroups.map(({ contract, entries: cEntries, qtValue: cQt, collected: cColl, pending: cPend }) => (
+                    <div key={contract.id}>
+                      <div className="px-5 py-2 bg-gray-50/60 border-b border-gray-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            contract.type === 'vat' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
+                          }`}>
+                            {CONTRACT_LABEL[contract.type] ?? contract.type}
                           </span>
-                        )}
-                        {isCeo && cQt > 0 && (
-                          <span className="text-xs text-gray-500">
-                            QT: <span className="font-medium text-purple-700">{formatVND(cQt)}</span>
-                          </span>
-                        )}
-                      </div>
-                      {isCeo && (
-                        <div className="flex gap-3 text-xs">
-                          <span className="text-green-700 font-medium">Đã thu: {formatVNDShort(cColl)}</span>
-                          <span className="text-orange-600 font-medium">Chưa thu: {formatVNDShort(cPend)}</span>
+                          {isCeo && (
+                            <span className="text-xs text-gray-500">
+                              Giá trị HĐ: <span className="font-medium text-gray-700">{formatVND(contract.value)}</span>
+                            </span>
+                          )}
+                          {isCeo && cQt > 0 && (
+                            <span className="text-xs text-gray-500">
+                              QT: <span className="font-medium text-purple-700">{formatVND(cQt)}</span>
+                            </span>
+                          )}
                         </div>
-                      )}
+                        <div className="flex items-center gap-3">
+                          {isCeo && (
+                            <>
+                              <span className="text-xs text-green-700 font-medium">Đã thu: {formatVNDShort(cColl)}</span>
+                              <span className="text-xs text-orange-600 font-medium">Chưa thu: {formatVNDShort(cPend)}</span>
+                            </>
+                          )}
+                          {isCeo && cEntries.length > 0 && (
+                            <button
+                              onClick={() => deleteAllForContract(contract.id, CONTRACT_LABEL[contract.type] ?? contract.type)}
+                              className="flex items-center gap-1 px-2 py-0.5 border border-red-200 text-red-500 text-xs rounded-lg hover:bg-red-50"
+                            >
+                              <Trash2 size={11} />
+                              Xóa HĐ này
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <RevenueTable
+                        entries={cEntries}
+                        contractValue={contract.value}
+                        qtValue={cQt}
+                        isCeo={isCeo}
+                        onEdit={setEditingEntry}
+                        onDelete={deleteEntry}
+                      />
                     </div>
-                    <RevenueTable
-                      entries={cEntries}
-                      contractValue={contract.value}
-                      qtValue={cQt}
-                      isCeo={isCeo}
-                      onEdit={setEditingEntry}
-                    />
-                  </div>
-                ))
+                  ))}
+
+                  {/* Unlinked entries (legacy data with no contract_id) */}
+                  {unlinkedEntries.length > 0 && (
+                    <div>
+                      <div className="px-5 py-2 bg-yellow-50 border-b border-yellow-100">
+                        <span className="text-xs font-medium text-yellow-700">Chưa phân loại HĐ</span>
+                        <span className="ml-2 text-xs text-yellow-600">— vui lòng chỉnh sửa để gắn đúng loại hợp đồng</span>
+                      </div>
+                      <RevenueTable
+                        entries={unlinkedEntries}
+                        contractValue={0}
+                        qtValue={0}
+                        isCeo={isCeo}
+                        onEdit={setEditingEntry}
+                        onDelete={deleteEntry}
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
-                // Single contract: flat view
                 <RevenueTable
                   entries={entries}
                   contractValue={singleContractValue}
                   qtValue={singleQtValue}
                   isCeo={isCeo}
                   onEdit={setEditingEntry}
+                  onDelete={deleteEntry}
                 />
               )}
             </div>
