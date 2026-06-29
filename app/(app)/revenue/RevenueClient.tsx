@@ -42,7 +42,10 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
         .reduce((s, c) => s + c.value, 0)
       const collected = entries.filter(r => r.status === 'collected').reduce((s, r) => s + r.amount, 0)
       const pending = entries.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
-      return { project, entries, contractValue, collected, pending }
+      const qtValue = entries
+        .filter(r => r.stage.toLowerCase().includes('quyết toán') || r.stage.toLowerCase().includes('quyet toan'))
+        .reduce((s, r) => s + r.amount, 0)
+      return { project, entries, contractValue, collected, pending, qtValue }
     })
     .filter(g => g.entries.length > 0)
 
@@ -97,7 +100,7 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
         </div>
       ) : (
         <div className="space-y-4">
-          {grouped.map(({ project, entries, contractValue, collected, pending }) => (
+          {grouped.map(({ project, entries, contractValue, collected, pending, qtValue }) => (
             <div key={project.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-3 min-w-0">
@@ -109,8 +112,13 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
                     <ExternalLink size={13} className="text-gray-400 shrink-0" />
                   </Link>
                   {isCeo && contractValue > 0 && (
-                    <span className="text-xs text-gray-500 shrink-0">
-                      HĐ đã ký: <span className="font-medium text-gray-700">{formatVND(contractValue)}</span>
+                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full shrink-0 font-medium">
+                      HĐ: {formatVNDShort(contractValue)}
+                    </span>
+                  )}
+                  {isCeo && qtValue > 0 && (
+                    <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full shrink-0 font-medium">
+                      QT: {formatVNDShort(qtValue)}
                     </span>
                   )}
                 </div>
@@ -138,7 +146,9 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
                   <thead>
                     <tr className="text-xs text-gray-500 border-b border-gray-100 bg-white">
                       <th className="text-left px-5 py-2.5 font-medium">Đợt thu</th>
-                      {isCeo && <th className="text-right px-5 py-2.5 font-medium">Số tiền</th>}
+                      {isCeo && <th className="text-right px-4 py-2.5 font-medium">Giá trị HĐ</th>}
+                      {isCeo && <th className="text-right px-4 py-2.5 font-medium">Giá trị QT cuối</th>}
+                      {isCeo && <th className="text-right px-5 py-2.5 font-medium">Số tiền đợt</th>}
                       <th className="text-left px-5 py-2.5 font-medium">Ngày thu</th>
                       <th className="text-left px-5 py-2.5 font-medium">Trạng thái</th>
                       <th className="text-left px-5 py-2.5 font-medium hidden md:table-cell">Hình thức</th>
@@ -151,6 +161,16 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
                           {r.stage}
                           {r.note && <span className="ml-1.5 text-xs text-gray-400">({r.note})</span>}
                         </td>
+                        {isCeo && (
+                          <td className="px-4 py-3 text-right text-gray-500 tabular-nums text-xs">
+                            {contractValue > 0 ? formatVND(contractValue) : '—'}
+                          </td>
+                        )}
+                        {isCeo && (
+                          <td className="px-4 py-3 text-right text-gray-500 tabular-nums text-xs">
+                            {qtValue > 0 ? formatVND(qtValue) : '—'}
+                          </td>
+                        )}
                         {isCeo && (
                           <td className="px-5 py-3 text-right font-medium text-gray-900 tabular-nums">
                             {formatVND(r.amount)}
