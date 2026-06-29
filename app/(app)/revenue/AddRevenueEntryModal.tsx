@@ -6,29 +6,40 @@ import { createClient } from '@/lib/supabase/client'
 import { X } from 'lucide-react'
 
 const STAGE_PRESETS = ['Tạm ứng 1', 'Tạm ứng 2', 'Tạm ứng 3', 'Quyết toán', 'Thu phụ']
+const CONTRACT_LABEL: Record<string, string> = { vat: 'HĐ Xuất VAT', no_vat: 'HĐ Không VAT' }
 
 interface Project { id: string; name: string }
+interface ContractRow { id: string; project_id: string; type: string; value: number }
 
 interface Props {
   projects: Project[]
+  contracts: ContractRow[]
   defaultProjectId?: string
   userId: string
   onClose: () => void
 }
 
-export default function AddRevenueEntryModal({ projects, defaultProjectId, userId, onClose }: Props) {
+export default function AddRevenueEntryModal({ projects, contracts, defaultProjectId, userId, onClose }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [stage, setStage] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId ?? '')
+
+  const projectContracts = contracts.filter(c => c.project_id === selectedProjectId)
+  const hasMultipleContracts = projectContracts.length > 1
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     const form = new FormData(e.currentTarget)
 
+    const contractId = form.get('contract_id') as string || null
+    const autoContractId = projectContracts.length === 1 ? projectContracts[0].id : contractId
+
     const { error } = await supabase.from('revenue').insert({
-      project_id: form.get('project_id') as string,
+      project_id: selectedProjectId,
+      contract_id: autoContractId || null,
       stage: form.get('stage') as string,
       amount: parseInt(form.get('amount') as string || '0', 10),
       collected_date: form.get('collected_date') as string || null,
@@ -61,7 +72,8 @@ export default function AddRevenueEntryModal({ projects, defaultProjectId, userI
             <select
               name="project_id"
               required
-              defaultValue={defaultProjectId || ''}
+              value={selectedProjectId}
+              onChange={e => setSelectedProjectId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">-- Chọn công trình --</option>
@@ -70,6 +82,30 @@ export default function AddRevenueEntryModal({ projects, defaultProjectId, userI
               ))}
             </select>
           </div>
+
+          {hasMultipleContracts && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Loại hợp đồng <span className="text-red-500">*</span></label>
+              <select
+                name="contract_id"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Chọn loại HĐ --</option>
+                {projectContracts.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {CONTRACT_LABEL[c.type] ?? c.type} — {c.value.toLocaleString('vi-VN')}₫
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {selectedProjectId && !hasMultipleContracts && projectContracts.length === 1 && (
+            <p className="text-xs text-gray-400 -mt-1">
+              Tự động gắn: <span className="font-medium text-gray-600">{CONTRACT_LABEL[projectContracts[0].type] ?? projectContracts[0].type}</span>
+            </p>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Đợt thu <span className="text-red-500">*</span></label>

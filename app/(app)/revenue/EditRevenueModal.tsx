@@ -6,10 +6,12 @@ import { createClient } from '@/lib/supabase/client'
 import { X, Trash2 } from 'lucide-react'
 
 const STAGE_PRESETS = ['Tạm ứng 1', 'Tạm ứng 2', 'Tạm ứng 3', 'Quyết toán', 'Thu phụ']
+const CONTRACT_LABEL: Record<string, string> = { vat: 'HĐ Xuất VAT', no_vat: 'HĐ Không VAT' }
 
 interface RevenueRow {
   id: string
   project_id: string
+  contract_id?: string | null
   stage: string
   amount: number
   collected_date?: string | null
@@ -19,14 +21,16 @@ interface RevenueRow {
 }
 
 interface Project { id: string; name: string }
+interface ContractRow { id: string; project_id: string; type: string; value: number }
 
 interface Props {
   entry: RevenueRow
   projects: Project[]
+  contracts: ContractRow[]
   onClose: () => void
 }
 
-export default function EditRevenueModal({ entry, projects, onClose }: Props) {
+export default function EditRevenueModal({ entry, projects, contracts, onClose }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -34,13 +38,20 @@ export default function EditRevenueModal({ entry, projects, onClose }: Props) {
   const [stage, setStage] = useState(entry.stage)
 
   const projectName = projects.find(p => p.id === entry.project_id)?.name ?? '—'
+  const projectContracts = contracts.filter(c => c.project_id === entry.project_id)
+  const hasMultipleContracts = projectContracts.length > 1
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     const form = new FormData(e.currentTarget)
 
+    const contractId = hasMultipleContracts
+      ? (form.get('contract_id') as string || null)
+      : (projectContracts[0]?.id ?? entry.contract_id ?? null)
+
     const { error } = await supabase.from('revenue').update({
+      contract_id: contractId,
       stage: form.get('stage') as string,
       amount: parseInt(form.get('amount') as string || '0', 10),
       collected_date: form.get('collected_date') as string || null,
@@ -85,6 +96,25 @@ export default function EditRevenueModal({ entry, projects, onClose }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+          {hasMultipleContracts && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Loại hợp đồng <span className="text-red-500">*</span></label>
+              <select
+                name="contract_id"
+                required
+                defaultValue={entry.contract_id ?? ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Chọn loại HĐ --</option>
+                {projectContracts.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {CONTRACT_LABEL[c.type] ?? c.type} — {c.value.toLocaleString('vi-VN')}₫
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Đợt thu <span className="text-red-500">*</span></label>
             <input

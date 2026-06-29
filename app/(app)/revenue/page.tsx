@@ -24,7 +24,7 @@ export default async function RevenuePage() {
       .order('name'),
     supabase
       .from('contracts')
-      .select('id, project_id, value'),
+      .select('id, project_id, type, value'),
     supabase
       .from('revenue')
       .select('*')
