@@ -71,15 +71,18 @@ export default async function CashflowPage({ searchParams }: PageProps) {
 
   const entryMap = new Map((entries ?? []).map(e => [e.employee_id, e]))
   let payrollTongLuong = 0, payrollBhxhNLD = 0, payrollBhxhCTY = 0
-  for (const emp of (allEmployees ?? [])) {
-    const entry = entryMap.get(emp.id)
-    if (!emp.is_active && !entry) continue
-    const isFullSalary = (emp.salary_type ?? 'proportional') === 'full'
-    if (!entry && !isFullSalary) continue
-    const result = calcPayroll(emp, entry ?? {}, month, year)
-    payrollTongLuong += result.tongThucNhan
-    payrollBhxhNLD  += result.bhxhNLD
-    payrollBhxhCTY  += result.bhxhCTY
+  // Chỉ tính nếu tháng này đã có dữ liệu bảng lương (có ít nhất 1 entry)
+  if ((entries ?? []).length > 0) {
+    for (const emp of (allEmployees ?? [])) {
+      const entry = entryMap.get(emp.id)
+      if (!emp.is_active && !entry) continue
+      const isFullSalary = (emp.salary_type ?? 'proportional') === 'full'
+      if (!entry && !isFullSalary) continue
+      const result = calcPayroll(emp, entry ?? {}, month, year)
+      payrollTongLuong += result.tongThucNhan
+      payrollBhxhNLD  += result.bhxhNLD
+      payrollBhxhCTY  += result.bhxhCTY
+    }
   }
 
   // OPEX cố định tháng này
@@ -103,6 +106,7 @@ export default async function CashflowPage({ searchParams }: PageProps) {
 
   return (
     <CashflowClient
+      key={`${month}-${year}`}
       month={month}
       year={year}
       userId={user.id}
