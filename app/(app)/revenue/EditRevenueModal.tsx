@@ -16,6 +16,7 @@ interface RevenueRow {
   amount: number
   collected_date?: string | null
   payment_method: string
+  payment_channel?: string | null
   status: string
   note?: string | null
 }
@@ -50,12 +51,14 @@ export default function EditRevenueModal({ entry, projects, contracts, onClose }
       ? (form.get('contract_id') as string || null)
       : (projectContracts[0]?.id ?? entry.contract_id ?? null)
 
+    const channel = form.get('payment_channel') as string || 'tk_cty'
     const { error } = await supabase.from('revenue').update({
       contract_id: contractId,
       stage: form.get('stage') as string,
       amount: parseInt(form.get('amount') as string || '0', 10),
       collected_date: form.get('collected_date') as string || null,
-      payment_method: form.get('payment_method') as string,
+      payment_method: channel === 'tm' ? 'Tiền mặt' : 'Chuyển khoản',
+      payment_channel: channel,
       status: form.get('status') as string,
       note: form.get('note') as string || null,
     }).eq('id', entry.id)
@@ -178,26 +181,26 @@ export default function EditRevenueModal({ entry, projects, contracts, onClose }
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Hình thức</label>
-              <select
-                name="payment_method"
-                defaultValue={entry.payment_method}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Chuyển khoản">Chuyển khoản</option>
-                <option value="Tiền mặt">Tiền mặt</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Ghi chú</label>
-              <input
-                name="note"
-                defaultValue={entry.note ?? ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Kênh thu tiền <span className="text-red-500">*</span></label>
+            <select
+              name="payment_channel"
+              defaultValue={entry.payment_channel ?? 'tk_cty'}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="tk_cty">TK Công ty</option>
+              <option value="tk_cn">TK Cá nhân</option>
+              <option value="tm">Tiền mặt</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Ghi chú</label>
+            <input
+              name="note"
+              defaultValue={entry.note ?? ''}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
