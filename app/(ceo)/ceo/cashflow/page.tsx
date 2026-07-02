@@ -98,7 +98,7 @@ export default async function CashflowPage({ searchParams }: PageProps) {
     .select('opening_balance, luong_paid, bhxh_paid, opex_paid')
     .eq('month', month)
     .eq('year', year)
-    .single()
+    .maybeSingle()
 
   // Revenue vào TM và TKCN tháng này
   const revenueTm   = (revenueRaw ?? []).filter(r => r.payment_channel === 'tm'    && inMonth(r.collected_date))

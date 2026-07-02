@@ -96,12 +96,27 @@ export default function CashflowClient(props: Props) {
     router.refresh()
   }
 
+  // Insert-or-update helper — chỉ update đúng cột chỉ định, không overwrite cột khác
+  async function saveBalanceSetting(updates: Record<string, unknown>) {
+    const { data: existing } = await supabase
+      .from('bank_balance_settings')
+      .select('id')
+      .eq('month', month)
+      .eq('year', year)
+      .maybeSingle()
+    if (existing) {
+      await supabase.from('bank_balance_settings')
+        .update(updates)
+        .eq('month', month).eq('year', year)
+    } else {
+      await supabase.from('bank_balance_settings')
+        .insert({ month, year, ...updates })
+    }
+  }
+
   async function savePayrollTick(field: 'luong_paid' | 'bhxh_paid' | 'opex_paid', val: boolean) {
     setSavingPayroll(true)
-    await supabase.from('bank_balance_settings').upsert(
-      { month, year, [field]: val, updated_at: new Date().toISOString() },
-      { onConflict: 'month,year' }
-    )
+    await saveBalanceSetting({ [field]: val })
     setSavingPayroll(false)
   }
 
@@ -115,10 +130,7 @@ export default function CashflowClient(props: Props) {
   async function saveOpening() {
     setSavingOpening(true)
     const amount = parseInt(openingInput.replace(/[^\d-]/g, '') || '0', 10)
-    await supabase.from('bank_balance_settings').upsert(
-      { month, year, opening_balance: amount, updated_at: new Date().toISOString() },
-      { onConflict: 'month,year' }
-    )
+    await saveBalanceSetting({ opening_balance: amount })
     setEditingOpening(false)
     setSavingOpening(false)
     router.refresh()
