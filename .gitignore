@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+.env*
+
+# local dev tooling config (machine-specific)
+.claude/

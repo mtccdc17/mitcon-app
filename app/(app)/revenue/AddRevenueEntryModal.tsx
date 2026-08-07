@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { X } from 'lucide-react'
+import { X, Plus, ChevronDown } from 'lucide-react'
 
 const STAGE_PRESETS = ['Tạm ứng 1', 'Tạm ứng 2', 'Tạm ứng 3', 'Quyết toán', 'Thu phụ']
 const CONTRACT_LABEL: Record<string, string> = { vat: 'HĐ Xuất VAT', no_vat: 'HĐ Không VAT' }
@@ -19,12 +19,54 @@ interface Props {
   onClose: () => void
 }
 
-export default function AddRevenueEntryModal({ projects, contracts, defaultProjectId, userId, onClose }: Props) {
+export default function AddRevenueEntryModal({ projects: initialProjects, contracts: initialContracts, defaultProjectId, userId, onClose }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [stage, setStage] = useState('')
   const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId ?? '')
+  const [projects, setProjects] = useState(initialProjects)
+  const [contracts, setContracts] = useState(initialContracts)
+
+  // Mini form state
+  const [showNewProject, setShowNewProject] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newCustomer, setNewCustomer] = useState('')
+  const [newPhase, setNewPhase] = useState<'Thi Công' | 'Thiết Kế'>('Thi Công')
+  const [creatingProject, setCreatingProject] = useState(false)
+
+  async function handleCreateProject() {
+    if (!newName.trim() || !newCustomer.trim()) return
+    setCreatingProject(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: project, error } = await supabase.from('projects').insert({
+      name: newName.trim().toUpperCase(),
+      customer_name: newCustomer.trim().toUpperCase(),
+      phase: newPhase,
+      created_by: user?.id,
+    }).select().single()
+
+    if (error || !project) {
+      alert('Không thể tạo công trình. Thử lại.')
+      setCreatingProject(false)
+      return
+    }
+
+    // Create 2 default contracts
+    const { data: newContracts } = await supabase.from('contracts').insert([
+      { project_id: project.id, type: 'vat', value: 0, description: 'Hợp đồng xuất hóa đơn VAT' },
+      { project_id: project.id, type: 'no_vat', value: 0, description: 'Hợp đồng không xuất hóa đơn' },
+    ]).select()
+
+    setProjects(prev => [...prev, { id: project.id, name: project.name }])
+    if (newContracts) setContracts(prev => [...prev, ...newContracts])
+    setSelectedProjectId(project.id)
+    setShowNewProject(false)
+    setNewName('')
+    setNewCustomer('')
+    setNewPhase('Thi Công')
+    setCreatingProject(false)
+  }
 
   const projectContracts = contracts.filter(c => c.project_id === selectedProjectId)
   const hasMultipleContracts = projectContracts.length > 1
@@ -83,6 +125,77 @@ export default function AddRevenueEntryModal({ projects, contracts, defaultProje
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+
+            {/* Nút mở mini-form tạo công trình mới */}
+            {!showNewProject ? (
+              <button
+                type="button"
+                onClick={() => setShowNewProject(true)}
+                className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                <Plus size={13} /> Tạo công trình mới
+              </button>
+            ) : (
+              <div className="mt-3 border border-blue-200 bg-blue-50 rounded-xl p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Công trình mới</p>
+                  <button type="button" onClick={() => setShowNewProject(false)} className="text-gray-400 hover:text-gray-600">
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tên công trình <span className="text-red-500">*</span></label>
+                  <input
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    placeholder="VD: VP Công ty ABC - Q1"
+                    className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tên khách hàng <span className="text-red-500">*</span></label>
+                  <input
+                    value={newCustomer}
+                    onChange={e => setNewCustomer(e.target.value)}
+                    placeholder="VD: Công ty TNHH ABC"
+                    className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Giai đoạn</label>
+                  <div className="flex gap-2">
+                    {(['Thi Công', 'Thiết Kế'] as const).map(ph => (
+                      <button
+                        key={ph}
+                        type="button"
+                        onClick={() => setNewPhase(ph)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          newPhase === ph
+                            ? ph === 'Thi Công'
+                              ? 'border-blue-500 bg-blue-600 text-white'
+                              : 'border-purple-500 bg-purple-600 text-white'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        {ph === 'Thi Công' ? '🏗' : '✏️'} {ph}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCreateProject}
+                  disabled={creatingProject || !newName.trim() || !newCustomer.trim()}
+                  className="w-full py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-lg transition-colors"
+                >
+                  {creatingProject ? 'Đang tạo...' : '✓ Tạo & chọn công trình này'}
+                </button>
+              </div>
+            )}
           </div>
 
           {hasMultipleContracts && (

@@ -13,11 +13,16 @@ export default async function DashboardPage() {
   const profile = await getProfile(user.id)
   if (!profile) redirect('/login')
 
+  // nhansu has no dashboard — redirect to their page
+  if ((user.app_metadata as Record<string, string>)?.role === 'nhansu' || profile.role === 'nhansu') {
+    redirect('/payroll')
+  }
+
   const role = profile.role as UserRole
 
   const supabase = await createClient()
   const [{ data: projectsRaw }, { data: txRaw }, { data: revRaw }] = await Promise.all([
-    supabase.from('projects').select('id, name, customer_name, status').in('status', ['active', 'completed']),
+    supabase.from('projects').select('id, name, customer_name, status, phase').in('status', ['active', 'completed']),
     supabase.from('transactions').select('amount, vat_amount, tncn_amount, payment_status, project_id, is_vat_allocation'),
     supabase.from('revenue').select('amount, status, project_id'),
   ])
@@ -122,6 +127,7 @@ export default async function DashboardPage() {
               <tr>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">Tên công trình</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">Khách hàng</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">Giai đoạn</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">Trạng thái</th>
               </tr>
             </thead>
@@ -132,6 +138,19 @@ export default async function DashboardPage() {
                     <Link href={`/projects/${p.id}`} className="text-gray-900 hover:text-blue-600 transition-colors">{p.name}</Link>
                   </td>
                   <td className="px-5 py-3 text-gray-600 hidden md:table-cell">{p.customer_name}</td>
+                  <td className="px-5 py-3 hidden lg:table-cell">
+                    {p.phase ? (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        p.phase === 'Thiết Kế'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {p.phase === 'Thiết Kế' ? '✏️' : '🏗'} {p.phase}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                       Đang chạy
@@ -155,6 +174,7 @@ export default async function DashboardPage() {
               <tr>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">Tên công trình</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">Khách hàng</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">Giai đoạn</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">Trạng thái</th>
               </tr>
             </thead>
@@ -165,6 +185,19 @@ export default async function DashboardPage() {
                     <Link href={`/projects/${p.id}`} className="text-gray-900 hover:text-blue-600 transition-colors">{p.name}</Link>
                   </td>
                   <td className="px-5 py-3 text-gray-600 hidden md:table-cell">{p.customer_name}</td>
+                  <td className="px-5 py-3 hidden lg:table-cell">
+                    {p.phase ? (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        p.phase === 'Thiết Kế'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {p.phase === 'Thiết Kế' ? '✏️' : '🏗'} {p.phase}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                       Đã hoàn thành

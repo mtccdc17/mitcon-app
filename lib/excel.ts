@@ -230,6 +230,80 @@ export function exportProjectToExcel(
 }
 
 // =============================================
+// EXPORT — báo cáo chi phí hóa đơn hợp lệ về thuế (đối chiếu tờ khai GTGT/TNDN)
+// =============================================
+
+// Cùng tiêu chí "hợp lệ" đang dùng để tính CP hợp lệ (TNDN) ở trang chi tiết công trình:
+//   Vật tư: có VAT ghi nhận (vat_amount > 0) — nghĩa là có hóa đơn VAT thật
+//   Nhân công: có TNCN đã khấu trừ (tncn_amount > 0) — nghĩa là có hồ sơ/hợp đồng hợp lệ
+export function exportTaxInvoiceReport(
+  project: Project,
+  transactions: Transaction[],
+  categories: Category[]
+) {
+  const wb = XLSX.utils.book_new()
+  const catName = (id?: string) => categories.find(c => c.id === id)?.name ?? ''
+  const VAT_LABEL: Record<string, string> = { vat_10: 'VAT 10%', vat_8: 'VAT 8%', no_vat: 'Không VAT' }
+
+  const vatTx = transactions.filter(t => !t.is_labor && (t.vat_amount ?? 0) > 0)
+    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
+  const laborTx = transactions.filter(t => t.is_labor && (t.tncn_amount ?? 0) > 0)
+    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
+
+  const vtRows = vatTx.map(t => ({
+    'Ngày xuất': t.transaction_date,
+    'Hạng mục': catName(t.category_id),
+    'Nhà cung cấp': t.supplier ?? '',
+    'Nội dung': t.description,
+    'Số tiền': t.amount,
+    'Thuế suất': VAT_LABEL[t.vat_rate] ?? '',
+    'Tiền VAT': t.vat_amount ?? 0,
+    'Mã số hóa đơn': t.invoice_number ?? '',
+  }))
+  vtRows.push({
+    'Ngày xuất': '', 'Hạng mục': '', 'Nhà cung cấp': '', 'Nội dung': 'TỔNG CỘNG',
+    'Số tiền': vatTx.reduce((s, t) => s + t.amount, 0),
+    'Thuế suất': '', 'Tiền VAT': vatTx.reduce((s, t) => s + (t.vat_amount ?? 0), 0),
+    'Mã số hóa đơn': '',
+  })
+  const vtSheet = XLSX.utils.json_to_sheet(vtRows)
+  vtSheet['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 26 }, { wch: 28 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 14 }]
+  XLSX.utils.book_append_sheet(wb, vtSheet, 'Vật tư')
+
+  const ncRows = laborTx.map(t => ({
+    'Ngày': t.transaction_date,
+    'Hạng mục': catName(t.category_id),
+    'Tên nhân công': t.supplier ?? '',
+    'Nội dung': t.description,
+    'Số tiền': t.amount,
+    'TNCN đã khấu trừ': t.tncn_amount ?? 0,
+  }))
+  ncRows.push({
+    'Ngày': '', 'Hạng mục': '', 'Tên nhân công': '', 'Nội dung': 'TỔNG CỘNG',
+    'Số tiền': laborTx.reduce((s, t) => s + t.amount, 0),
+    'TNCN đã khấu trừ': laborTx.reduce((s, t) => s + (t.tncn_amount ?? 0), 0),
+  })
+  const ncSheet = XLSX.utils.json_to_sheet(ncRows)
+  ncSheet['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 26 }, { wch: 28 }, { wch: 14 }, { wch: 16 }]
+  XLSX.utils.book_append_sheet(wb, ncSheet, 'Nhân công')
+
+  const summary = [
+    ['Công trình', project.name],
+    ['Khách hàng', project.customer_name],
+    ['Tổng chi phí vật tư hợp lệ (chưa VAT)', vatTx.reduce((s, t) => s + t.amount - (t.vat_amount ?? 0), 0)],
+    ['Tổng tiền VAT được khấu trừ', vatTx.reduce((s, t) => s + (t.vat_amount ?? 0), 0)],
+    ['Tổng chi phí nhân công hợp lệ', laborTx.reduce((s, t) => s + t.amount, 0)],
+    ['Tổng TNCN đã khấu trừ', laborTx.reduce((s, t) => s + (t.tncn_amount ?? 0), 0)],
+    ['Ngày xuất báo cáo', new Date().toLocaleString('vi-VN')],
+  ]
+  const summarySheet = XLSX.utils.aoa_to_sheet(summary)
+  summarySheet['!cols'] = [{ wch: 34 }, { wch: 30 }]
+  XLSX.utils.book_append_sheet(wb, summarySheet, 'Tổng quan')
+
+  XLSX.writeFile(wb, `Hoa_don_hop_le_${slugify(project.name)}_${dateStamp()}.xlsx`)
+}
+
+// =============================================
 // EXPORT — full system backup
 // =============================================
 
@@ -306,6 +380,82 @@ export function exportFullSystemToExcel(data: FullSystemData) {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(opexRows), 'Chi phí vận hành')
 
   XLSX.writeFile(wb, `Mitcon_Backup_Toanbo_${dateStamp()}.xlsx`)
+}
+
+// =============================================
+// SUPPLIERS EXPORT / IMPORT
+// =============================================
+
+export function exportSuppliers(suppliers: { name: string; tax_code?: string | null; cccd?: string | null; phone?: string | null; contact_person?: string | null; note?: string | null }[]) {
+  const wb = XLSX.utils.book_new()
+  const rows = suppliers.map(s => ({
+    'Tên công ty / Nhà thầu': s.name,
+    'Mã số thuế (MST)': s.tax_code ?? '',
+    'CCCD': s.cccd ?? '',
+    'Số điện thoại': s.phone ?? '',
+    'Người liên hệ': s.contact_person ?? '',
+    'Ghi chú': s.note ?? '',
+  }))
+  const sheet = XLSX.utils.json_to_sheet(rows)
+  sheet['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 30 }]
+  XLSX.utils.book_append_sheet(wb, sheet, 'Nhà cung cấp')
+  XLSX.writeFile(wb, `Nha_cung_cap_${dateStamp()}.xlsx`)
+}
+
+export function downloadSuppliersTemplate() {
+  const wb = XLSX.utils.book_new()
+  const headers = ['Tên công ty / Nhà thầu', 'Mã số thuế (MST)', 'CCCD', 'Số điện thoại', 'Người liên hệ', 'Ghi chú']
+  const examples = [
+    ['Công ty TNHH Ván Hoàng Gia', '0312345678', '', '0901234567', 'Anh Hùng', 'Cung cấp ván gỗ công nghiệp'],
+    ['Thợ Nguyễn Văn Minh', '', '079123456789', '0912345678', '', 'Thợ sơn nước'],
+    ['Cty Đèn Trang Trí Ánh Sáng', '0398765432', '', '0938765432', 'Chị Lan', ''],
+  ]
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...examples])
+  sheet['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 30 }]
+  XLSX.utils.book_append_sheet(wb, sheet, 'Nhà cung cấp')
+  const noteSheet = XLSX.utils.aoa_to_sheet([
+    ['HƯỚNG DẪN NHẬP DANH SÁCH NHÀ CUNG CẤP'],
+    [''],
+    ['1. Cột "Tên công ty / Nhà thầu": BẮT BUỘC.'],
+    ['2. Công ty: điền MST. Cá nhân/thợ: điền CCCD.'],
+    ['3. Không cần điền tất cả cột, chỉ cần tên là đủ.'],
+    ['4. Xem 3 dòng ví dụ trong sheet "Nhà cung cấp".'],
+  ].map(r => [r[0]]))
+  noteSheet['!cols'] = [{ wch: 60 }]
+  XLSX.utils.book_append_sheet(wb, noteSheet, 'Hướng dẫn')
+  XLSX.writeFile(wb, 'Mau_nha_cung_cap.xlsx')
+}
+
+export interface ParsedSupplierRow {
+  rowIndex: number
+  name: string
+  tax_code: string
+  cccd: string
+  phone: string
+  contact_person: string
+  note: string
+  error?: string
+}
+
+export async function parseSuppliersFile(file: File): Promise<ParsedSupplierRow[]> {
+  const buf = await file.arrayBuffer()
+  const wb = XLSX.read(buf, { type: 'array' })
+  const sheet = wb.Sheets['Nhà cung cấp'] ?? wb.Sheets[wb.SheetNames[0]]
+  const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false })
+  const dataRows = rows.slice(1).filter(r => r.some(c => c !== undefined && String(c).trim() !== ''))
+  return dataRows.map((r, i) => {
+    const [name, tax_code, cccd, phone, contact_person, note] = r.map(c => String(c ?? '').trim())
+    return {
+      rowIndex: i + 2,
+      name: name ?? '',
+      tax_code: tax_code ?? '',
+      cccd: cccd ?? '',
+      phone: phone ?? '',
+      contact_person: contact_person ?? '',
+      note: note ?? '',
+      error: !name ? 'Thiếu tên' : undefined,
+    }
+  })
 }
 
 function slugify(str: string): string {

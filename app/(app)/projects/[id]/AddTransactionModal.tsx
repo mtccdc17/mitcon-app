@@ -24,6 +24,7 @@ const UNIT_OPTIONS: Record<UserRole, string> = {
   ketoan: 'Kế Toán',
   thicong: 'Thi Công',
   thumua: 'Thu Mua',
+  nhansu: 'Nhân Sự',
 }
 
 export default function AddTransactionModal({
@@ -53,10 +54,14 @@ export default function AddTransactionModal({
   const [laborContractStatus, setLaborContractStatus] = useState('not_signed')
   const [note, setNote] = useState('')
 
-  // VAT allocation fields
+  // VAT allocation fields — nguồn gốc chi phí thật (công trình + hạng mục) chứa hóa đơn VAT này
   const [vatAllocAmount, setVatAllocAmount] = useState('')
   const [vatAllocRate, setVatAllocRate] = useState<'vat_8' | 'vat_10'>('vat_8')
-  const [vatAllocRef, setVatAllocRef] = useState('')
+  const [sourceProjects, setSourceProjects] = useState<{ id: string; name: string }[]>([])
+  const [sourceProjectId, setSourceProjectId] = useState('')
+  const [sourceCategories, setSourceCategories] = useState<{ id: string; name: string }[]>([])
+  const [sourceCategoryId, setSourceCategoryId] = useState('')
+  const [loadingSourceCats, setLoadingSourceCats] = useState(false)
 
   // Supplier autocomplete
   const [supplierList, setSupplierList] = useState<{ id: string; name: string; tax_code?: string; phone?: string }[]>([])
@@ -74,6 +79,26 @@ export default function AddTransactionModal({
       .then(({ data }) => { if (data) setSupplierList(data) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Danh sách công trình cho "Phân bổ VAT" — gồm cả công trình hiện tại (đầu mục khác cùng công trình)
+  useEffect(() => {
+    supabase.from('projects').select('id, name').order('name')
+      .then(({ data }) => { if (data) setSourceProjects(data) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Hạng mục của công trình gốc đã chọn
+  useEffect(() => {
+    if (!sourceProjectId) { setSourceCategories([]); setSourceCategoryId(''); return }
+    setLoadingSourceCats(true)
+    supabase.from('categories').select('id, name').eq('project_id', sourceProjectId).order('sort_order')
+      .then(({ data }) => {
+        setSourceCategories(data ?? [])
+        setSourceCategoryId('')
+        setLoadingSourceCats(false)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceProjectId])
 
   const filteredSuppliers = supplierList.filter(s =>
     !supplier || s.name.toLowerCase().includes(supplier.toLowerCase())
@@ -157,7 +182,7 @@ export default function AddTransactionModal({
     if (mode === 'labor' || mode === 'combined') {
       const amount = parseInt(amountLabor || '0', 10)
       if (amount !== 0) {
-        const tncn_amount = calcTNCN(amount)
+        const tncn_amount = laborContractStatus === 'signed' ? calcTNCN(amount) : 0
         const actualPaidLabor =
           paymentStatus === 'paid' ? amount :
           paymentStatus === 'partial' ? partialPaid :
@@ -179,6 +204,11 @@ export default function AddTransactionModal({
 
     if (mode === 'vat_alloc') {
       const vatAmt = parseInt(vatAllocAmount.replace(/[^\d]/g, '') || '0', 10)
+      if (!sourceProjectId || !sourceCategoryId) {
+        alert('Vui lòng chọn Công trình gốc và Hạng mục gốc.')
+        setLoading(false)
+        return
+      }
       if (vatAmt > 0) {
         records.push({
           ...shared,
@@ -192,7 +222,9 @@ export default function AddTransactionModal({
           labor_contract_status: 'not_signed',
           invoice_status: 'has_invoice',
           invoice_number: invoiceNumber || null,
-          note: vatAllocRef || null,
+          source_project_id: sourceProjectId,
+          source_category_id: sourceCategoryId,
+          note: null,
         })
       }
     }
@@ -349,17 +381,20 @@ export default function AddTransactionModal({
             )}
           </div>
 
-          {/* Payment method */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Hình thức TT</label>
-            <select value={note} onChange={e => setNote(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">-- Chưa chọn --</option>
-              <option value="Tiền mặt">Tiền mặt</option>
-              <option value="CK công ty">CK công ty</option>
-              <option value="CK cá nhân">CK cá nhân</option>
-            </select>
-          </div>
+          {/* Payment method — không áp dụng cho Phân bổ VAT (không phải tiền chi thật) */}
+          {mode !== 'vat_alloc' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Hình thức TT</label>
+              <select value={note} onChange={e => setNote(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">-- Chưa chọn --</option>
+                <option value="TM">Tiền mặt (TM)</option>
+                <option value="CK CTY">CK Công ty (CK CTY)</option>
+                <option value="CK CN">CK Cá nhân (CK CN)</option>
+                <option value="Từ quỹ ứng">GS chi từ quỹ đã ứng</option>
+              </select>
+            </div>
+          )}
 
           {/* VAT Allocation form */}
           {mode === 'vat_alloc' && (
@@ -384,11 +419,29 @@ export default function AddTransactionModal({
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Công trình gốc (ghi chú)</label>
-                <input value={vatAllocRef} onChange={e => setVatAllocRef(e.target.value)}
-                  placeholder="VD: CT A - HĐ ván gỗ công nghiệp"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Công trình gốc <span className="text-red-500">*</span></label>
+                  <select required value={sourceProjectId} onChange={e => setSourceProjectId(e.target.value)}
+                    className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="">-- Chọn công trình --</option>
+                    {sourceProjects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}{p.id === projectId ? ' (công trình này)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Hạng mục gốc <span className="text-red-500">*</span></label>
+                  <select required value={sourceCategoryId} onChange={e => setSourceCategoryId(e.target.value)}
+                    disabled={!sourceProjectId || loadingSourceCats}
+                    className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:text-gray-400">
+                    <option value="">{loadingSourceCats ? 'Đang tải...' : '-- Chọn hạng mục --'}</option>
+                    {sourceCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  {sourceProjectId && !loadingSourceCats && sourceCategories.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">Công trình này chưa có hạng mục nào.</p>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Số hóa đơn</label>

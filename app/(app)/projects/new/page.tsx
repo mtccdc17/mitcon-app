@@ -24,6 +24,7 @@ export default function NewProjectPage() {
       address: form.get('address') as string || null,
       start_date: form.get('start_date') as string || null,
       end_date: form.get('end_date') as string || null,
+      phase: form.get('phase') as string || 'Thi Công',
       created_by: user?.id,
     }).select().single()
 
@@ -61,6 +62,25 @@ export default function NewProjectPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ công trình</label>
           <input name="address" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Số nhà, đường, quận, thành phố" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Giai đoạn <span className="text-red-500">*</span></label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex items-center gap-3 border border-gray-200 rounded-lg px-4 py-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+              <input type="radio" name="phase" value="Thi Công" defaultChecked className="accent-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">🏗 Thi Công</p>
+                <p className="text-xs text-gray-500">Xây dựng &amp; hoàn thiện</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 border border-gray-200 rounded-lg px-4 py-3 cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-colors has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50">
+              <input type="radio" name="phase" value="Thiết Kế" className="accent-purple-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">✏️ Thiết Kế</p>
+                <p className="text-xs text-gray-500">Bản vẽ &amp; hồ sơ</p>
+              </div>
+            </label>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

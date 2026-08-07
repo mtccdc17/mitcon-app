@@ -51,6 +51,7 @@ CREATE TABLE contracts (
   type contract_type NOT NULL,
   value BIGINT NOT NULL DEFAULT 0,
   description TEXT,
+  invoice_issue_date DATE,      -- Ngày xuất hóa đơn GTGT đầu ra (chỉ áp dụng HĐ Xuất VAT)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

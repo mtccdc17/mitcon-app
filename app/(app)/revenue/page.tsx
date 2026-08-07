@@ -3,6 +3,7 @@ import { getUser, getProfile } from '@/lib/supabase/cached'
 import { redirect } from 'next/navigation'
 import { UserRole } from '@/lib/types'
 import RevenueClient from './RevenueClient'
+import { computeCashflow } from '@/lib/cashflow'
 
 export default async function RevenuePage() {
   const user = await getUser()
@@ -13,15 +14,20 @@ export default async function RevenuePage() {
 
   const role = profile.role as UserRole
   const isCeo = role === 'ceo'
+  if (!isCeo) redirect('/dashboard')
 
   const supabase = await createClient()
 
-  const [{ data: projects }, { data: contracts }, { data: revenue }] = await Promise.all([
+  const [
+    { data: projects },
+    { data: contracts },
+    { data: revenue },
+  ] = await Promise.all([
     supabase
       .from('projects')
       .select('id, name')
       .in('status', ['active', 'completed'])
-      .order('name'),
+      .order('created_at', { ascending: false }),
     supabase
       .from('contracts')
       .select('id, project_id, type, value'),
@@ -31,6 +37,8 @@ export default async function RevenuePage() {
       .order('created_at', { ascending: false }),
   ])
 
+  const cashflow = await computeCashflow(supabase)
+
   return (
     <RevenueClient
       projects={projects ?? []}
@@ -38,6 +46,7 @@ export default async function RevenuePage() {
       revenue={revenue ?? []}
       isCeo={isCeo}
       userId={user.id}
+      cashflow={cashflow}
     />
   )
 }

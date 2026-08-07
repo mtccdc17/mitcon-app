@@ -8,6 +8,9 @@ import { Plus, ExternalLink, Pencil, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AddRevenueEntryModal from './AddRevenueEntryModal'
 import EditRevenueModal from './EditRevenueModal'
+import CashflowBox, { CashflowData } from '@/components/CashflowBox'
+import CashflowHistoryModal from '@/components/CashflowHistoryModal'
+import CashflowAsOfModal from '@/components/CashflowAsOfModal'
 
 const CONTRACT_LABEL: Record<string, string> = { vat: 'HĐ Xuất VAT', no_vat: 'HĐ Không VAT' }
 
@@ -33,12 +36,22 @@ interface RevenueRow {
   note?: string | null
 }
 
+interface PersonalExpense {
+  id: string; date: string; description: string; category: string; channel: string; amount: number; notes?: string | null
+}
+interface PersonalLoan {
+  id: string; date: string; description: string; amount: number; repaid_amount: number; notes?: string | null
+}
+
 interface Props {
   projects: Project[]
   contracts: ContractRow[]
   revenue: RevenueRow[]
   isCeo: boolean
   userId: string
+  cashflow: CashflowData
+  personalExpenses?: PersonalExpense[]
+  personalLoans?: PersonalLoan[]
 }
 
 function RevenueTable({
@@ -144,7 +157,7 @@ function RevenueTable({
   )
 }
 
-export default function RevenueClient({ projects, contracts, revenue, isCeo, userId }: Props) {
+export default function RevenueClient({ projects, contracts, revenue, isCeo, userId, cashflow }: Props) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [defaultProjectId, setDefaultProjectId] = useState('')
@@ -180,9 +193,18 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
     router.refresh()
   }
 
+  function sortByDate(entries: RevenueRow[]) {
+    return [...entries].sort((a, b) => {
+      if (!a.collected_date && !b.collected_date) return 0
+      if (!a.collected_date) return 1
+      if (!b.collected_date) return -1
+      return b.collected_date.localeCompare(a.collected_date)
+    })
+  }
+
   const grouped = projects
     .map(project => {
-      const entries = revenue.filter(r => r.project_id === project.id)
+      const entries = sortByDate(revenue.filter(r => r.project_id === project.id))
       const projectContracts = contracts.filter(c => c.project_id === project.id)
       const hasMultiple = projectContracts.length > 1
 
@@ -191,7 +213,7 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
 
       const contractGroups = hasMultiple
         ? projectContracts.map(contract => {
-            const cEntries = entries.filter(r => r.contract_id === contract.id)
+            const cEntries = sortByDate(entries.filter(r => r.contract_id === contract.id))
             const cQtValue = cEntries
               .filter(r => r.stage.toLowerCase().includes('quyết toán') || r.stage.toLowerCase().includes('quyet toan'))
               .reduce((s, r) => s + r.amount, 0)
@@ -267,6 +289,10 @@ export default function RevenueClient({ projects, contracts, revenue, isCeo, use
               <p className="text-base font-bold text-amber-800 tabular-nums">{formatVNDShort(byChannel.tm)}</p>
             </div>
           </div>
+
+          {/* Dòng tiền thực tế */}
+          <div className="flex items-center justify-end gap-2"><CashflowHistoryModal /><CashflowAsOfModal /></div>
+          <CashflowBox cashflow={cashflow} />
         </div>
       )}
 

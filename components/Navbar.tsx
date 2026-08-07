@@ -4,22 +4,9 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { UserRole } from '@/lib/types'
+import { ROLE_LABEL, NAV_ITEMS } from '@/lib/navConfig'
 import { clsx } from 'clsx'
-import { LayoutDashboard, Building2, TrendingUp, FileText, LogOut } from 'lucide-react'
-
-const ROLE_LABEL: Record<UserRole, string> = {
-  ceo: 'CEO',
-  ketoan: 'Kế Toán',
-  thicong: 'Thi Công',
-  thumua: 'Thu Mua',
-}
-
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ceo', 'ketoan', 'thicong', 'thumua'] },
-  { href: '/projects', label: 'Công trình', icon: Building2, roles: ['ceo', 'ketoan', 'thicong', 'thumua'] },
-  { href: '/revenue', label: 'Doanh thu', icon: TrendingUp, roles: ['ceo', 'ketoan', 'thicong', 'thumua'] },
-  { href: '/invoices', label: 'Hóa đơn đầu vào', icon: FileText, roles: ['ceo', 'ketoan', 'thicong', 'thumua'] },
-] as const
+import { LogOut } from 'lucide-react'
 
 interface NavbarProps {
   role: UserRole

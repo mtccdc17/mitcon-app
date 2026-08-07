@@ -1,4 +1,4 @@
-export type UserRole = 'ceo' | 'ketoan' | 'thicong' | 'thumua'
+export type UserRole = 'ceo' | 'ketoan' | 'thicong' | 'thumua' | 'nhansu'
 export type ProjectStatus = 'active' | 'completed' | 'archived'
 export type ContractType = 'vat' | 'no_vat'
 export type VatRate = 'vat_10' | 'vat_8' | 'no_vat'
@@ -16,6 +16,8 @@ export interface Profile {
   created_at: string
 }
 
+export type ProjectPhase = 'Thiết Kế' | 'Thi Công'
+
 export interface Project {
   id: string
   name: string
@@ -24,6 +26,7 @@ export interface Project {
   start_date?: string
   end_date?: string
   status: ProjectStatus
+  phase?: ProjectPhase | null
   archived_at?: string
   archived_by?: string
   created_by?: string
@@ -32,6 +35,9 @@ export interface Project {
   hs_khach?: boolean
   hs_ncc?: boolean
   hs_nhan_cong?: boolean
+  documents_folder_url?: string | null
+  commission_hieu?: boolean
+  commission_tan?: boolean
 }
 
 export interface Contract {
@@ -40,6 +46,7 @@ export interface Contract {
   type: ContractType
   value: number
   description?: string
+  invoice_issue_date?: string | null
   created_at: string
 }
 
@@ -82,6 +89,11 @@ export interface Transaction {
   payment_history?: PaymentEntry[] | null
   kt_verified?: boolean
   is_vat_allocation?: boolean
+  source_project_id?: string | null
+  source_category_id?: string | null
+  vat_dest_project_id?: string | null
+  vat_dest_category_id?: string | null
+  vat_dest_amount?: number | null
   note?: string
   created_by?: string
   created_at: string
@@ -119,6 +131,9 @@ export interface Supplier {
   name: string
   tax_code?: string
   cccd?: string
+  address?: string | null
+  cccd_issue_date?: string | null
+  cccd_issue_place?: string | null
   phone?: string
   contact_person?: string
   note?: string
@@ -127,10 +142,28 @@ export interface Supplier {
   updated_at: string
 }
 
+export interface ContractDocument {
+  id: string
+  project_id: string
+  category_id?: string | null
+  supplier_id?: string | null
+  contract_number: string
+  total_amount: number
+  installment_count: number
+  signed_date: string
+  completion_date: string
+  transaction_ids: string[]
+  file_name: string
+  created_by?: string
+  created_at: string
+}
+
 export interface OperatingCost {
   id: string
   month: number
   year: number
+  spent_date?: string | null
+  source_channel?: string | null
   description: string
   amount: number
   cost_type: string
