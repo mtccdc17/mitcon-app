@@ -33,6 +33,7 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
     { data: revenue },
     { data: projects },
     { data: deposits },
+    { data: loans },
     { data: transfers },
     { data: transactions },
     { data: personalExpenses },
@@ -48,6 +49,7 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
     supabase.from('revenue').select('id, amount, status, payment_channel, payment_method, collected_date, project_id'),
     supabase.from('projects').select('id, name'),
     supabase.from('channel_deposits').select('id, date, description, channel, amount'),
+    supabase.from('personal_loans').select('id, date, description, channel, amount, repaid_amount, repaid_channel, repaid_date'),
     supabase.from('channel_transfers').select('id, from_channel, to_channel, amount, date, note'),
     supabase.from('transactions').select('id, description, amount, vat_amount, tncn_amount, is_labor, is_vat_allocation, contract_id, note, payment_status, payment_date, transaction_date, actual_paid, project_id'),
     supabase.from('personal_expenses').select('id, date, description, channel, amount'),
@@ -82,6 +84,16 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
     const ch = mapCh(d.channel)
     if (!ch) continue
     entries.push({ id: `dep-${d.id}`, date: d.date, channel: ch, direction: 'in', category: 'Nộp ngược quỹ', description: d.description, amount: d.amount ?? 0 })
+  }
+
+  // 2b) Mượn tiền cá nhân → công ty (lúc mượn = thu vào; lúc hoàn trả = chi ra)
+  for (const l of (loans ?? [])) {
+    const ch = mapCh(l.channel)
+    if (ch) entries.push({ id: `loan-in-${l.id}`, date: l.date, channel: ch, direction: 'in', category: 'Mượn tiền Sếp', description: l.description, amount: l.amount ?? 0 })
+    if ((l.repaid_amount ?? 0) > 0 && l.repaid_date) {
+      const rch = mapCh(l.repaid_channel ?? l.channel)
+      if (rch) entries.push({ id: `loan-out-${l.id}`, date: l.repaid_date, channel: rch, direction: 'out', category: 'Trả nợ Sếp', description: l.description, amount: l.repaid_amount ?? 0 })
+    }
   }
 
   // 3) Chuyển tiền nội bộ — 1 dòng sinh 2 bút toán (đi 1 kênh, đến 1 kênh)

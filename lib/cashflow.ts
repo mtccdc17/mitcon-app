@@ -114,6 +114,8 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
   const { data: pExp } = await supabase.from('personal_expenses').select('channel, amount, date')
   // Nộp ngược tiền cá nhân vào quỹ công ty → CỘNG vào "Thu vào" của kênh (không phải doanh thu)
   const { data: deposits } = await supabase.from('channel_deposits').select('channel, amount, date')
+  // Sếp mượn tiền cá nhân cho công ty → CỘNG vào kênh nhận lúc mượn, TRỪ vào kênh trả lúc hoàn trả
+  const { data: loans } = await supabase.from('personal_loans').select('channel, amount, date, repaid_amount, repaid_channel, repaid_date')
   // Bước 3: chuyển tiền nội bộ giữa các kênh
   const { data: transfers } = await supabase.from('channel_transfers').select('from_channel, to_channel, amount, date')
   // Bước 4: tạm ứng công trình — tiền RA khỏi kênh nguồn (còn giữ = amount − returned)
@@ -236,13 +238,27 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
     if (ch in depIn) depIn[ch] += d.amount ?? 0
   }
 
-  const iTkCty = inTkCty + depIn.tk_cty
-  const iTkCn  = inTkCn + depIn.tk_cn
-  const iTm    = inTm + depIn.tm
+  // Mượn tiền cá nhân → công ty: lúc mượn cộng vào kênh nhận, lúc hoàn trả trừ khỏi kênh trả
+  const loanIn: Record<string, number> = { tk_cty: 0, tk_cn: 0, tm: 0 }
+  const loanOut: Record<string, number> = { tk_cty: 0, tk_cn: 0, tm: 0 }
+  for (const l of (loans ?? [])) {
+    if (keepDate(l.date)) {
+      const ch = mapCh(l.channel)
+      if (ch in loanIn) loanIn[ch] += l.amount ?? 0
+    }
+    if ((l.repaid_amount ?? 0) > 0 && keepDate(l.repaid_date)) {
+      const ch = mapCh(l.repaid_channel ?? l.channel)
+      if (ch in loanOut) loanOut[ch] += l.repaid_amount ?? 0
+    }
+  }
 
-  const oTkCty = outTkCty + peOut.tk_cty + opexOut.tk_cty + fixOut.tk_cty + payOut.tk_cty + taxOut.tk_cty + advSalaryOut.tk_cty
-  const oTkCn  = outTkCn + peOut.tk_cn + opexOut.tk_cn + fixOut.tk_cn + payOut.tk_cn + taxOut.tk_cn + advSalaryOut.tk_cn
-  const oTm    = outTm + peOut.tm + opexOut.tm + fixOut.tm + payOut.tm + taxOut.tm + advSalaryOut.tm
+  const iTkCty = inTkCty + depIn.tk_cty + loanIn.tk_cty
+  const iTkCn  = inTkCn + depIn.tk_cn + loanIn.tk_cn
+  const iTm    = inTm + depIn.tm + loanIn.tm
+
+  const oTkCty = outTkCty + peOut.tk_cty + opexOut.tk_cty + fixOut.tk_cty + payOut.tk_cty + taxOut.tk_cty + advSalaryOut.tk_cty + loanOut.tk_cty
+  const oTkCn  = outTkCn + peOut.tk_cn + opexOut.tk_cn + fixOut.tk_cn + payOut.tk_cn + taxOut.tk_cn + advSalaryOut.tk_cn + loanOut.tk_cn
+  const oTm    = outTm + peOut.tm + opexOut.tm + fixOut.tm + payOut.tm + taxOut.tm + advSalaryOut.tm + loanOut.tm
 
   return {
     tk_cty: { opening: opening.tk_cty, in: iTkCty, out: oTkCty, unpaid: unpaidTkCty, advance: advOut.tk_cty, transfer: trf.tk_cty, net: opening.tk_cty + iTkCty - oTkCty - advOut.tk_cty + trf.tk_cty },

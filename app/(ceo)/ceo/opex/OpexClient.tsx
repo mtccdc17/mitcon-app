@@ -36,7 +36,8 @@ interface PersonalExpenseRow {
   id: string; date: string; description: string; category: string; channel: string; amount: number; notes?: string | null
 }
 interface PersonalLoanRow {
-  id: string; date: string; description: string; amount: number; repaid_amount: number; notes?: string | null
+  id: string; date: string; description: string; amount: number; channel: string
+  repaid_amount: number; repaid_channel?: string | null; repaid_date?: string | null; notes?: string | null
 }
 interface FixedPayment {
   id: string; month: number; year: number; item_name: string; amount: number

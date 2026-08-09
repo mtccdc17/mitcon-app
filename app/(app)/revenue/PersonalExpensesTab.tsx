@@ -35,7 +35,10 @@ interface PersonalLoan {
   date: string
   description: string
   amount: number
+  channel: string
   repaid_amount: number
+  repaid_channel?: string | null
+  repaid_date?: string | null
   notes?: string | null
 }
 
@@ -95,11 +98,16 @@ export default function PersonalExpensesTab({
     date: new Date().toISOString().split('T')[0],
     description: '',
     amount: '',
+    channel: 'tk_cn',
     notes: '',
   })
   const [repayAmount, setRepayAmount] = useState('')
+  const [repayChannel, setRepayChannel] = useState('tk_cn')
+  const [repayDate, setRepayDate] = useState(new Date().toISOString().split('T')[0])
   const [editingExpense, setEditingExpense] = useState<PersonalExpense | null>(null)
   const [editForm, setEditForm] = useState({ date: '', description: '', category: 'Sinh hoạt', channel: 'tk_cn', amount: '', notes: '' })
+  const [editingLoan, setEditingLoan] = useState<PersonalLoan | null>(null)
+  const [loanEditForm, setLoanEditForm] = useState({ date: '', description: '', amount: '', channel: 'tk_cn', notes: '' })
 
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0)
   const sumCh = (ch: string) => expenses.filter(e => e.channel === ch).reduce((s, e) => s + e.amount, 0)
@@ -184,6 +192,7 @@ export default function PersonalExpensesTab({
         date: loanForm.date,
         description: loanForm.description,
         amount: parseFloat(loanForm.amount),
+        channel: loanForm.channel,
         repaid_amount: 0,
         notes: loanForm.notes || null,
       })
@@ -193,10 +202,40 @@ export default function PersonalExpensesTab({
     if (!error && data) {
       setLoans([data as PersonalLoan, ...loans])
       setShowAddLoan(false)
-      setLoanForm({ date: new Date().toISOString().split('T')[0], description: '', amount: '', notes: '' })
+      setLoanForm({ date: new Date().toISOString().split('T')[0], description: '', amount: '', channel: 'tk_cn', notes: '' })
     } else if (error) {
       console.error('Add loan error:', error)
       alert('Lỗi ghi khoản mượn:\n' + (error.message ?? '') + (error.code ? `\n[${error.code}]` : ''))
+    }
+  }
+
+  function openEditLoan(l: PersonalLoan) {
+    setLoanEditForm({ date: l.date, description: l.description, amount: String(l.amount), channel: l.channel ?? 'tk_cn', notes: l.notes ?? '' })
+    setEditingLoan(l)
+  }
+
+  async function handleUpdateLoan() {
+    if (!editingLoan || !loanEditForm.description || !loanEditForm.amount) return
+    setSaving(true)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('personal_loans')
+      .update({
+        date: loanEditForm.date,
+        description: loanEditForm.description,
+        amount: parseFloat(loanEditForm.amount),
+        channel: loanEditForm.channel,
+        notes: loanEditForm.notes || null,
+      })
+      .eq('id', editingLoan.id)
+      .select()
+      .single()
+    setSaving(false)
+    if (!error && data) {
+      setLoans(prev => prev.map(x => x.id === editingLoan.id ? (data as PersonalLoan) : x))
+      setEditingLoan(null)
+    } else if (error) {
+      alert('Lỗi cập nhật khoản mượn:\n' + (error.message ?? ''))
     }
   }
 
@@ -209,11 +248,11 @@ export default function PersonalExpensesTab({
     const newRepaid = (repayingLoan.repaid_amount ?? 0) + add
     const { error } = await supabase
       .from('personal_loans')
-      .update({ repaid_amount: newRepaid })
+      .update({ repaid_amount: newRepaid, repaid_channel: repayChannel, repaid_date: repayDate })
       .eq('id', repayingLoan.id)
     setSaving(false)
     if (!error) {
-      setLoans(prev => prev.map(l => l.id === repayingLoan.id ? { ...l, repaid_amount: newRepaid } : l))
+      setLoans(prev => prev.map(l => l.id === repayingLoan.id ? { ...l, repaid_amount: newRepaid, repaid_channel: repayChannel, repaid_date: repayDate } : l))
       setRepayingLoan(null)
       setRepayAmount('')
     }
@@ -289,12 +328,12 @@ export default function PersonalExpensesTab({
       </div>
 
       {totalDebt > 0 && (
-        <div className="bg-amber-950 border border-amber-800/60 rounded-xl px-5 py-3 flex items-center justify-between">
+        <div className="bg-amber-100 border border-amber-300 rounded-xl px-5 py-3 flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-amber-400 uppercase tracking-wider">Công ty đang nợ Sếp</p>
+            <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Công ty đang nợ Sếp</p>
             <p className="text-[11px] text-amber-700 mt-0.5">Tổng khoản mượn chưa hoàn trả</p>
           </div>
-          <p className="text-xl font-black text-orange-400 tabular-nums">{formatVNDShort(totalDebt)}</p>
+          <p className="text-xl font-black text-orange-600 tabular-nums">{formatVNDShort(totalDebt)}</p>
         </div>
       )}
 
@@ -378,66 +417,72 @@ export default function PersonalExpensesTab({
       </div>
 
       {/* Loan tracker */}
-      <div className="bg-gray-950 rounded-xl overflow-hidden border border-amber-900/50">
-        <div className="px-5 py-3 bg-amber-950/70 border-b border-amber-900/40 flex items-center justify-between">
+      <div className="bg-amber-50 rounded-xl overflow-hidden border border-amber-200">
+        <div className="px-5 py-3 bg-amber-100 border-b border-amber-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-amber-300">Mượn tiền cá nhân → Công ty</h3>
-            <p className="text-[11px] text-amber-800 mt-0.5">Sếp ứng tiền vào công ty — ghi nợ để theo dõi hoàn trả</p>
+            <h3 className="text-sm font-semibold text-amber-900">Mượn tiền cá nhân → Công ty</h3>
+            <p className="text-[11px] text-amber-700 mt-0.5">Sếp ứng tiền vào công ty — ghi nợ để theo dõi hoàn trả</p>
           </div>
           <button
             onClick={() => setShowAddLoan(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-700 text-amber-300 text-xs font-medium rounded-lg hover:bg-amber-900/40 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-400 text-amber-800 text-xs font-medium rounded-lg hover:bg-amber-200/60 transition-colors"
           >
             <Plus size={13} />
             Ghi khoản mượn
           </button>
         </div>
         {loans.length === 0 ? (
-          <p className="px-5 py-10 text-sm text-amber-900 text-center italic">Chưa có khoản mượn nào.</p>
+          <p className="px-5 py-10 text-sm text-amber-700 text-center italic">Chưa có khoản mượn nào.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] text-amber-800/80 border-b border-amber-900/30">
+                <tr className="text-[11px] text-amber-700 border-b border-amber-200">
                   <th className="text-left px-5 py-2.5 font-medium">Ngày mượn</th>
                   <th className="text-left px-5 py-2.5 font-medium">Mục đích</th>
+                  <th className="text-left px-4 py-2.5 font-medium">Kênh nhận</th>
                   <th className="text-right px-4 py-2.5 font-medium">Số tiền mượn</th>
                   <th className="text-right px-4 py-2.5 font-medium">Đã trả lại</th>
                   <th className="text-right px-5 py-2.5 font-medium">Còn nợ</th>
                   <th className="text-left px-4 py-2.5 font-medium">Trạng thái</th>
-                  <th className="px-3 py-2.5 w-20" />
+                  <th className="px-3 py-2.5 w-24" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-amber-900/20">
+              <tbody className="divide-y divide-amber-100">
                 {loans.map(l => {
                   const remaining = Math.max(0, l.amount - l.repaid_amount)
                   const settled = remaining <= 0
                   const partial = !settled && l.repaid_amount > 0
                   return (
-                    <tr key={l.id} className="group">
+                    <tr key={l.id} className="group hover:bg-amber-100/40">
                       <td className="px-5 py-3 text-amber-700 text-xs tabular-nums whitespace-nowrap">
                         {new Date(l.date + 'T00:00:00').toLocaleDateString('vi-VN')}
                       </td>
-                      <td className="px-5 py-3 text-amber-200 font-medium">
+                      <td className="px-5 py-3 text-amber-950 font-medium">
                         {l.description}
                         {l.notes && <span className="ml-1.5 text-xs text-amber-700">({l.notes})</span>}
                       </td>
-                      <td className="px-4 py-3 text-right text-amber-400 tabular-nums text-xs whitespace-nowrap">
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${CHANNEL_STYLE[l.channel] ?? 'bg-amber-200 text-amber-800'}`}>
+                          {CHANNEL_LABEL[l.channel] ?? l.channel ?? '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-amber-800 tabular-nums text-xs whitespace-nowrap">
                         {formatVND(l.amount)}
                       </td>
-                      <td className="px-4 py-3 text-right text-green-500 tabular-nums text-xs whitespace-nowrap">
+                      <td className="px-4 py-3 text-right text-green-700 tabular-nums text-xs whitespace-nowrap">
                         {formatVND(l.repaid_amount)}
                       </td>
                       <td className="px-5 py-3 text-right font-bold tabular-nums whitespace-nowrap">
-                        <span className={settled ? 'text-green-500' : 'text-orange-400'}>
+                        <span className={settled ? 'text-green-700' : 'text-orange-600'}>
                           {formatVND(remaining)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          settled ? 'bg-green-900/40 text-green-400' :
-                          partial  ? 'bg-amber-900/40 text-amber-400' :
-                                     'bg-red-900/40 text-red-400'
+                          settled ? 'bg-green-100 text-green-700' :
+                          partial  ? 'bg-amber-200 text-amber-800' :
+                                     'bg-red-100 text-red-700'
                         }`}>
                           {settled ? 'Đã hoàn' : partial ? 'Chưa đủ' : 'Chưa trả'}
                         </span>
@@ -446,15 +491,23 @@ export default function PersonalExpensesTab({
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {!settled && (
                             <button
-                              onClick={() => { setRepayingLoan(l); setRepayAmount('') }}
-                              className="px-2 py-1 text-[10px] text-amber-300 border border-amber-700 rounded hover:bg-amber-900/40 whitespace-nowrap"
+                              onClick={() => { setRepayingLoan(l); setRepayAmount(''); setRepayChannel(l.channel ?? 'tk_cn'); setRepayDate(new Date().toISOString().split('T')[0]) }}
+                              className="px-2 py-1 text-[10px] text-amber-800 border border-amber-400 rounded hover:bg-amber-200/60 whitespace-nowrap"
                             >
                               Ghi trả
                             </button>
                           )}
                           <button
+                            onClick={() => openEditLoan(l)}
+                            className="p-1 text-amber-600 hover:text-blue-600 rounded"
+                            title="Sửa"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
                             onClick={() => handleDeleteLoan(l.id, l.description)}
-                            className="p-1 text-amber-800 hover:text-red-400 rounded"
+                            className="p-1 text-amber-600 hover:text-red-600 rounded"
+                            title="Xóa"
                           >
                             <Trash2 size={12} />
                           </button>
@@ -468,9 +521,9 @@ export default function PersonalExpensesTab({
           </div>
         )}
         {loans.length > 0 && (
-          <div className="px-5 py-3 border-t border-amber-900/30 flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-amber-200 flex items-center justify-between">
             <span className="text-xs text-amber-700 font-medium">Tổng đang nợ Sếp</span>
-            <span className={`text-lg font-black tabular-nums ${totalDebt > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+            <span className={`text-lg font-black tabular-nums ${totalDebt > 0 ? 'text-orange-600' : 'text-green-700'}`}>
               {formatVNDShort(totalDebt)}
             </span>
           </div>
@@ -729,6 +782,13 @@ export default function PersonalExpensesTab({
                   onChange={ev => setLoanForm(f => ({ ...f, description: ev.target.value }))} />
               </div>
               <div>
+                <label className={LBL}>Mượn vào kênh</label>
+                <select className={INP} value={loanForm.channel}
+                  onChange={ev => setLoanForm(f => ({ ...f, channel: ev.target.value }))}>
+                  {DEPOSIT_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className={LBL}>Ghi chú (tuỳ chọn)</label>
                 <input type="text" className={INP} value={loanForm.notes}
                   onChange={ev => setLoanForm(f => ({ ...f, notes: ev.target.value }))} />
@@ -751,6 +811,57 @@ export default function PersonalExpensesTab({
         </div>
       )}
 
+      {/* Modal: Edit Loan */}
+      {editingLoan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Sửa khoản mượn</h2>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={LBL}>Ngày mượn</label>
+                  <input type="date" className={INP} value={loanEditForm.date}
+                    onChange={ev => setLoanEditForm(f => ({ ...f, date: ev.target.value }))} />
+                </div>
+                <div>
+                  <label className={LBL}>Số tiền mượn (₫)</label>
+                  <input type="number" min="0" className={INP} value={loanEditForm.amount}
+                    onChange={ev => setLoanEditForm(f => ({ ...f, amount: ev.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className={LBL}>Mục đích</label>
+                <input type="text" className={INP} value={loanEditForm.description}
+                  onChange={ev => setLoanEditForm(f => ({ ...f, description: ev.target.value }))} />
+              </div>
+              <div>
+                <label className={LBL}>Mượn vào kênh</label>
+                <select className={INP} value={loanEditForm.channel}
+                  onChange={ev => setLoanEditForm(f => ({ ...f, channel: ev.target.value }))}>
+                  {DEPOSIT_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LBL}>Ghi chú (tuỳ chọn)</label>
+                <input type="text" className={INP} value={loanEditForm.notes}
+                  onChange={ev => setLoanEditForm(f => ({ ...f, notes: ev.target.value }))} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setEditingLoan(null)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                Huỷ
+              </button>
+              <button onClick={handleUpdateLoan}
+                disabled={saving || !loanEditForm.description || !loanEditForm.amount}
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Repay */}
       {repayingLoan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -767,14 +878,28 @@ export default function PersonalExpensesTab({
                 <span className="font-bold text-orange-600">{formatVND(repayingLoan.amount - repayingLoan.repaid_amount)}</span>
               </div>
             </div>
-            <div>
-              <label className={LBL}>Số tiền trả lần này (₫)</label>
-              <input
-                type="number" min="0" className={INP} placeholder="0"
-                value={repayAmount}
-                onChange={ev => setRepayAmount(ev.target.value)}
-                autoFocus
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={LBL}>Số tiền trả lần này (₫)</label>
+                <input
+                  type="number" min="0" className={INP} placeholder="0"
+                  value={repayAmount}
+                  onChange={ev => setRepayAmount(ev.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className={LBL}>Ngày trả</label>
+                <input type="date" className={INP} value={repayDate}
+                  onChange={ev => setRepayDate(ev.target.value)} />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className={LBL}>Trả từ kênh</label>
+              <select className={INP} value={repayChannel}
+                onChange={ev => setRepayChannel(ev.target.value)}>
+                {DEPOSIT_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setRepayingLoan(null)}
