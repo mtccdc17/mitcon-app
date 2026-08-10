@@ -1,5 +1,5 @@
 import { UserRole } from '@/lib/types'
-import { LayoutDashboard, Building2, TrendingUp, FileText, Shield, Users, Banknote, Calculator, FileSignature, UserCog, Sparkles } from 'lucide-react'
+import { LayoutDashboard, Building2, TrendingUp, FileText, Shield, Users, Banknote, Calculator, FileSignature, UserCog, Sparkles, Wallet } from 'lucide-react'
 
 // Tách riêng khỏi Navbar.tsx (file 'use client') vì import named export không phải component
 // từ 1 file 'use client' vào Server Component gây lỗi runtime production
@@ -22,6 +22,7 @@ export const NAV_ITEMS = [
   { href: '/payroll', label: 'Bảng lương', icon: Calculator, roles: ['ceo', 'nhansu'] },
   { href: '/hop-dong', label: 'Hợp đồng thầu phụ', icon: FileSignature, roles: ['ceo', 'ketoan', 'nhansu'] },
   { href: '/ceo/opex', label: 'Vận hành', icon: Shield, roles: ['ceo'] },
+  { href: '/ceo/chi-tieu-ca-nhan', label: 'Chi tiêu cá nhân', icon: Wallet, roles: ['ceo'] },
   { href: '/ceo/co-van-tai-chinh', label: 'Cố vấn tài chính', icon: Sparkles, roles: ['ceo'] },
   { href: '/ceo/users', label: 'Quản lý tài khoản', icon: UserCog, roles: ['ceo'] },
 ] as const

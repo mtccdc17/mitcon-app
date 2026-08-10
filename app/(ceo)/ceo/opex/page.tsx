@@ -226,15 +226,11 @@ export default async function OpexPage({ searchParams }: PageProps) {
   const cashflow = await computeCashflow(supabase)
   const [
     { data: chotSoSettings }, { data: transfers }, { data: siteAdvances },
-    { data: personalExpenses }, { data: personalLoans }, { data: channelDeposits },
     { data: fixedPayments }, { data: taxPayments },
   ] = await Promise.all([
     supabase.from('cashflow_settings').select('*').eq('id', 1).maybeSingle(),
     supabase.from('channel_transfers').select('*').order('date', { ascending: false }),
     supabase.from('site_advances').select('*').order('date', { ascending: false }),
-    supabase.from('personal_expenses').select('*').order('date', { ascending: false }),
-    supabase.from('personal_loans').select('*').order('date', { ascending: false }),
-    supabase.from('channel_deposits').select('*').order('date', { ascending: false }),
     supabase.from('fixed_cost_payments').select('*').eq('year', year),
     supabase.from('tax_payments').select('*').order('paid_date', { ascending: false }),
   ])
@@ -290,9 +286,6 @@ export default async function OpexPage({ searchParams }: PageProps) {
       chotSo={chotSoSettings ?? null}
       transfers={transfers ?? []}
       siteAdvances={siteAdvances ?? []}
-      personalExpenses={personalExpenses ?? []}
-      personalLoans={personalLoans ?? []}
-      channelDeposits={channelDeposits ?? []}
       fixedPayments={fixedPayments ?? []}
       taxPayments={rangeTaxPayments}
       backupData={{

@@ -13,7 +13,6 @@ import CashflowAsOfModal from '@/components/CashflowAsOfModal'
 import ChotSoButton, { ChotSoSettings } from '@/components/ChotSoButton'
 import ChuyenTienPanel, { Transfer } from '@/components/ChuyenTienPanel'
 import SiteAdvancePanel, { SiteAdvance } from '@/components/SiteAdvancePanel'
-import PersonalExpensesTab, { type ChannelDeposit } from '@/app/(app)/revenue/PersonalExpensesTab'
 import { fixedPayDate, type FixedItem } from '@/lib/opexFixed'
 
 const COST_TYPES = [
@@ -32,13 +31,6 @@ const CHANNEL_LABEL: Record<string, string> = { tk_cty: 'TK Công ty', tk_cn: 'T
 const MONTH_VN = ['','Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                    'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
 
-interface PersonalExpenseRow {
-  id: string; date: string; description: string; category: string; channel: string; amount: number; notes?: string | null
-}
-interface PersonalLoanRow {
-  id: string; date: string; description: string; amount: number; channel: string
-  repaid_amount: number; repaid_channel?: string | null; repaid_date?: string | null; notes?: string | null
-}
 interface FixedPayment {
   id: string; month: number; year: number; item_name: string; amount: number
   source_channel: string; paid_date?: string | null
@@ -91,9 +83,6 @@ interface Props {
   chotSo: ChotSoSettings | null
   transfers: Transfer[]
   siteAdvances: SiteAdvance[]
-  personalExpenses: PersonalExpenseRow[]
-  personalLoans: PersonalLoanRow[]
-  channelDeposits: ChannelDeposit[]
   fixedPayments: FixedPayment[]
   taxPayments: TaxPayment[]
   backupData: {
@@ -108,7 +97,7 @@ export default function OpexClient({
   fixedCoDinh, fixedNhanSu, payrollTN1, payrollTN2, payrollBhxhNLD, payrollBhxhCTY, ceoBhxh,
   designFreelance, adsCosts, otherCosts, tncnThauPhu, thueBu, vatDauRa, vatDauVao, vatMethod,
   profitTable, taxTable,
-  cashflow, chotSo, transfers, siteAdvances, personalExpenses, personalLoans, channelDeposits,
+  cashflow, chotSo, transfers, siteAdvances,
   fixedPayments, taxPayments,
   backupData,
 }: Props) {
@@ -484,14 +473,6 @@ export default function OpexClient({
         <CashflowBox cashflow={cashflow} />
         <ChuyenTienPanel initial={transfers} />
         <SiteAdvancePanel initial={siteAdvances} />
-      </div>
-
-      {/* ── Chi tiêu cá nhân (giữ nguyên) ── */}
-      <div>
-        <div className="flex border-b border-gray-200 mb-4">
-          <span className="px-5 py-2.5 text-sm font-medium border-b-2 border-blue-500 text-blue-600">Chi tiêu cá nhân</span>
-        </div>
-        <PersonalExpensesTab initialExpenses={personalExpenses} initialLoans={personalLoans} initialDeposits={channelDeposits} />
       </div>
 
       {/* ── Modal chi phí phát sinh ── */}
