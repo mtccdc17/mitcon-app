@@ -53,6 +53,8 @@ export default function AddTransactionModal({
   const [amountLabor, setAmountLabor] = useState('')
   const [laborContractStatus, setLaborContractStatus] = useState('not_signed')
   const [note, setNote] = useState('')
+  const [advanceEmployeeId, setAdvanceEmployeeId] = useState('')
+  const [supervisors, setSupervisors] = useState<{ id: string; name: string }[]>([])
 
   // VAT allocation fields — nguồn gốc chi phí thật (công trình + hạng mục) chứa hóa đơn VAT này
   const [vatAllocAmount, setVatAllocAmount] = useState('')
@@ -77,6 +79,8 @@ export default function AddTransactionModal({
   useEffect(() => {
     supabase.from('suppliers').select('id, name, tax_code, phone').order('name')
       .then(({ data }) => { if (data) setSupplierList(data) })
+    supabase.from('employees').select('id, name').eq('is_site_supervisor', true).order('sort_order')
+      .then(({ data }) => { if (data) setSupervisors(data) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -147,6 +151,7 @@ export default function AddTransactionModal({
       description,
       supplier: supplier || null,
       note: note || null,
+      advance_employee_id: note === 'Từ quỹ ứng' ? (advanceEmployeeId || null) : null,
       payment_status: paymentStatus,
       payment_date: paymentDate || null,
       next_payment_date: null,
@@ -392,6 +397,17 @@ export default function AddTransactionModal({
                 <option value="CK CTY">CK Công ty (CK CTY)</option>
                 <option value="CK CN">CK Cá nhân (CK CN)</option>
                 <option value="Từ quỹ ứng">GS chi từ quỹ đã ứng</option>
+              </select>
+            </div>
+          )}
+
+          {mode !== 'vat_alloc' && note === 'Từ quỹ ứng' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Chi từ quỹ của</label>
+              <select value={advanceEmployeeId} onChange={e => setAdvanceEmployeeId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">-- Chọn giám sát viên --</option>
+                {supervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
           )}

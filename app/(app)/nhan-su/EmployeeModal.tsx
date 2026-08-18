@@ -23,6 +23,7 @@ export interface EmployeeRow {
   bank_account?: string | null
   bank_name?: string | null
   grab_eligible: boolean
+  is_site_supervisor?: boolean
   is_active: boolean
   sort_order: number
   start_month?: number | null
@@ -68,6 +69,7 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
     bank_account:    employee?.bank_account ?? '',
     bank_name:       employee?.bank_name    ?? '',
     grab_eligible:   employee?.grab_eligible ?? false,
+    is_site_supervisor: employee?.is_site_supervisor ?? false,
     start_month:         employee?.start_month         ? String(employee.start_month)         : (employee ? '' : String(new Date().getMonth() + 1)),
     start_year:          employee?.start_year          ? String(employee.start_year)          : (employee ? '' : String(new Date().getFullYear())),
     official_from_month: employee?.official_from_month ? String(employee.official_from_month) : '',
@@ -99,6 +101,7 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
       bank_account:    form.bank_account.trim() || null,
       bank_name:       form.bank_name.trim()    || null,
       grab_eligible:   form.grab_eligible,
+      is_site_supervisor: form.is_site_supervisor,
       start_month:         parseInt(form.start_month)         || null,
       start_year:          parseInt(form.start_year)          || null,
       official_from_month: parseInt(form.official_from_month) || null,
@@ -334,6 +337,14 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
               onChange={e => set('grab_eligible', e.target.checked)}
               className="w-4 h-4 rounded accent-blue-600" />
             Được hưởng phụ cấp Grab
+          </label>
+
+          {/* Giám sát công trình */}
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={form.is_site_supervisor}
+              onChange={e => set('is_site_supervisor', e.target.checked)}
+              className="w-4 h-4 rounded accent-orange-600" />
+            Giám sát công trình (có quỹ ứng riêng)
           </label>
 
           {/* Delete confirm box */}

@@ -33,12 +33,12 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
     supabase.from('revenue').select('amount, status, payment_channel, payment_method, collected_date'),
     supabase
       .from('transactions')
-      .select('amount, vat_amount, tncn_amount, note, payment_status, transaction_date, payment_date, actual_paid')
+      .select('amount, vat_amount, tncn_amount, note, payment_status, transaction_date, payment_date, actual_paid, payment_history')
       .neq('is_vat_allocation', true)
       .or('vat_amount.gt.0,tncn_amount.gt.0'),
     supabase
       .from('transactions')
-      .select('amount, note, payment_status, transaction_date, payment_date, actual_paid')
+      .select('amount, note, payment_status, transaction_date, payment_date, actual_paid, payment_history')
       .neq('is_vat_allocation', true)
       .eq('vat_amount', 0)
       .eq('tncn_amount', 0),
@@ -57,22 +57,36 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
 
   // Ngày tiền THẬT rời kênh = ngày thanh toán (payment_date); khoản cũ chưa có thì fallback ngày ghi.
   // Quan trọng: khoản chi ghi TRƯỚC chốt sổ nhưng TRẢ SAU chốt sổ vẫn phải trừ vào số dư.
+  type PayHistEntry = { amount?: number; date?: string }
   type TxLite = {
+    amount?: number | null
     payment_status?: string | null
     transaction_date?: string | null
     payment_date?: string | null
     actual_paid?: number | null
+    payment_history?: PayHistEntry[] | null
   }
   const settleDate = (t: TxLite) => t.payment_date ?? t.transaction_date
   const settledAfter = (t: TxLite) => {
     const d = settleDate(t)
     return (!closing || (d != null && d >= closing)) && upTo(d)
   }
-  // Chi (đã trả): chỉ đếm khoản ĐÃ thanh toán, và (không chốt sổ HOẶC trả sau ngày chốt)
-  const paidAfter = (t: TxLite) => t.payment_status === 'paid' && settledAfter(t)
-  // TT một phần: phần actual_paid đã rời kênh (trả sau ngày chốt)
-  const partialAfter = (t: TxLite) => t.payment_status === 'partial' && settledAfter(t)
-  const partialPaid = (t: TxLite) => t.actual_paid ?? 0
+  const dateOk = (d?: string | null) => (!closing || (d != null && d >= closing)) && upTo(d)
+  const isPaidOrPartial = (t: TxLite) => t.payment_status === 'paid' || t.payment_status === 'partial'
+  // Tiền THẬT đã rời kênh — khoản trả nhiều đợt (payment_history) tách đúng từng đợt vào ĐÚNG
+  // ngày của đợt đó, không gộp hết vào 1 ngày (payment_date chỉ là ngày đợt GẦN NHẤT, sai lệch
+  // nếu các đợt nằm khác tháng/khác kỳ chốt sổ nhau — bug thật đã xảy ra với khoản trả 2 đợt
+  // khác tháng, "Lịch sử chi trả" gộp nhầm cả 2 đợt vào tháng của đợt cuối). Khoản cũ/trả 1 lần
+  // chưa có payment_history → dùng lại actual_paid/amount tại settleDate như trước.
+  const cashOutOf = (t: TxLite): number => {
+    const hist = t.payment_history
+    if (hist && hist.length > 0) {
+      return hist.reduce((s, h) => s + (dateOk(h.date) ? (h.amount ?? 0) : 0), 0)
+    }
+    if (t.payment_status === 'paid') return settledAfter(t) ? (t.amount ?? 0) : 0
+    if (t.payment_status === 'partial') return settledAfter(t) ? (t.actual_paid ?? 0) : 0
+    return 0
+  }
   // Nợ chưa trả: chỉ để báo biết, KHÔNG trừ vào số dư (partial: chỉ báo phần còn thiếu)
   const isUnpaid = (t: TxLite) => t.payment_status !== 'paid'
   const unpaidPart = (t: TxLite, gross: number) =>
@@ -93,16 +107,12 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
 
   // LƯU Ý: amount ĐÃ gồm VAT (calcVAT tách VAT từ giá gross) → tiền chi ra = amount, KHÔNG cộng vat_amount nữa.
   const outTkCty =
-    vatTxCty.filter(paidAfter).reduce((s, t) => s + t.amount, 0) +
-    vatTxCty.filter(partialAfter).reduce((s, t) => s + partialPaid(t), 0) +
-    noVatTxC.filter(t => isNoteCty(t) && paidAfter(t)).reduce((s, t) => s + t.amount, 0) +
-    noVatTxC.filter(t => isNoteCty(t) && partialAfter(t)).reduce((s, t) => s + partialPaid(t), 0)
+    vatTxCty.filter(isPaidOrPartial).reduce((s, t) => s + cashOutOf(t), 0) +
+    noVatTxC.filter(t => isNoteCty(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
   const outTkCn =
-    noVatTxC.filter(t => isNoteCn(t) && paidAfter(t)).reduce((s, t) => s + t.amount, 0) +
-    noVatTxC.filter(t => isNoteCn(t) && partialAfter(t)).reduce((s, t) => s + partialPaid(t), 0)
+    noVatTxC.filter(t => isNoteCn(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
   const outTm =
-    noVatTxC.filter(t => isNoteTm(t) && paidAfter(t)).reduce((s, t) => s + t.amount, 0) +
-    noVatTxC.filter(t => isNoteTm(t) && partialAfter(t)).reduce((s, t) => s + partialPaid(t), 0)
+    noVatTxC.filter(t => isNoteTm(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
 
   const unpaidTkCty =
     vatTxCty.filter(isUnpaid).reduce((s, t) => s + unpaidPart(t, t.amount), 0) +

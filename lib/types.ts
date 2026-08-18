@@ -95,6 +95,7 @@ export interface Transaction {
   vat_dest_category_id?: string | null
   vat_dest_amount?: number | null
   note?: string
+  advance_employee_id?: string | null
   created_by?: string
   created_at: string
   updated_at: string

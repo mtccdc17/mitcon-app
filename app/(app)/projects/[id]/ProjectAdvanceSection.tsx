@@ -9,12 +9,15 @@ import { X, Trash2, Plus, Pencil, FileText } from 'lucide-react'
 export interface ProjectAdvance {
   id: string
   person: string
+  employee_id?: string | null
   channel: string
   date: string
   amount: number
   returned: number
   note?: string | null
 }
+
+export interface Supervisor { id: string; name: string }
 
 export interface AdvanceSpentItem {
   id: string
@@ -23,6 +26,7 @@ export interface AdvanceSpentItem {
   category_name: string | null
   supplier: string | null
   is_labor: boolean
+  advance_employee_id?: string | null
   amount: number
 }
 
@@ -31,18 +35,19 @@ const INP = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ri
 const LBL = 'block text-xs font-medium text-gray-600 mb-1'
 
 export default function ProjectAdvanceSection({
-  projectId, projectName, advances, spent, spentItems,
-}: { projectId: string; projectName: string; advances: ProjectAdvance[]; spent: number; spentItems?: AdvanceSpentItem[] }) {
+  projectId, projectName, advances, spent, spentItems, supervisors = [],
+}: { projectId: string; projectName: string; advances: ProjectAdvance[]; spent: number; spentItems?: AdvanceSpentItem[]; supervisors?: Supervisor[] }) {
   const router = useRouter()
   const [rows, setRows] = useState(advances)
   const [showAdd, setShowAdd] = useState(false)
   const [showSpentDetail, setShowSpentDetail] = useState(false)
+  const [spentFilterId, setSpentFilterId] = useState('')
   const [returning, setReturning] = useState<ProjectAdvance | null>(null)
   const [returnAmount, setReturnAmount] = useState('')
   const [editing, setEditing] = useState<ProjectAdvance | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    person: '', channel: 'tk_cn', amount: '',
+    employeeId: '', channel: 'tk_cn', amount: '',
     date: new Date().toISOString().split('T')[0], note: '',
   })
 
@@ -50,18 +55,35 @@ export default function ProjectAdvanceSection({
   const totalReturned = rows.reduce((s, r) => s + (r.returned ?? 0), 0)
   const fund = totalAdvanced - spent - totalReturned  // có thể âm nếu chi nhiều hơn ứng
 
+  // Tách riêng theo từng giám sát viên — công trình có nhiều người cùng ứng tiền.
+  const bySupervisor = supervisors
+    .map(sv => {
+      const svRows = rows.filter(r => r.employee_id === sv.id)
+      const advanced = svRows.reduce((s, r) => s + r.amount, 0)
+      const returned = svRows.reduce((s, r) => s + (r.returned ?? 0), 0)
+      const svSpent = (spentItems ?? []).filter(it => it.advance_employee_id === sv.id).reduce((s, it) => s + it.amount, 0)
+      return { ...sv, advanced, returned, spent: svSpent, remaining: advanced - svSpent - returned }
+    })
+    .filter(sv => sv.advanced > 0 || sv.spent > 0)
+  const unassigned = {
+    advanced: rows.filter(r => !r.employee_id).reduce((s, r) => s + r.amount, 0),
+    returned: rows.filter(r => !r.employee_id).reduce((s, r) => s + (r.returned ?? 0), 0),
+    spent: (spentItems ?? []).filter(it => !it.advance_employee_id).reduce((s, it) => s + it.amount, 0),
+  }
+
   async function handleAdd() {
-    if (!form.person || !form.amount) { alert('Nhập người ứng và số tiền.'); return }
+    if (!form.employeeId || !form.amount) { alert('Chọn người ứng và nhập số tiền.'); return }
     setSaving(true)
     const supabase = createClient()
+    const personName = supervisors.find(s => s.id === form.employeeId)?.name ?? ''
     const { data, error } = await supabase.from('site_advances').insert({
-      project_id: projectId, project: projectName, person: form.person, channel: form.channel,
+      project_id: projectId, project: projectName, person: personName, employee_id: form.employeeId, channel: form.channel,
       amount: parseFloat(form.amount), spent: 0, returned: 0, date: form.date, note: form.note || null,
     }).select().single()
     setSaving(false)
     if (!error && data) {
       setRows([data as ProjectAdvance, ...rows]); setShowAdd(false)
-      setForm(f => ({ ...f, person: '', amount: '', note: '' }))
+      setForm(f => ({ ...f, employeeId: '', amount: '', note: '' }))
       router.refresh()
     } else if (error) {
       alert('Lỗi ghi tạm ứng:\n' + (error.message ?? '') + (error.code ? `\n[${error.code}]` : ''))
@@ -84,16 +106,17 @@ export default function ProjectAdvanceSection({
   }
 
   async function handleEdit() {
-    if (!editing || !form.person || !form.amount) { alert('Nhập người ứng và số tiền.'); return }
+    if (!editing || !form.employeeId || !form.amount) { alert('Chọn người ứng và nhập số tiền.'); return }
     setSaving(true)
     const supabase = createClient()
+    const personName = supervisors.find(s => s.id === form.employeeId)?.name ?? ''
     const { error } = await supabase.from('site_advances').update({
-      person: form.person, channel: form.channel,
+      person: personName, employee_id: form.employeeId, channel: form.channel,
       amount: parseFloat(form.amount), date: form.date, note: form.note || null,
     }).eq('id', editing.id)
     setSaving(false)
     if (!error) {
-      setRows(prev => prev.map(r => r.id === editing.id ? { ...r, person: form.person, channel: form.channel, amount: parseFloat(form.amount), date: form.date, note: form.note || null } : r))
+      setRows(prev => prev.map(r => r.id === editing.id ? { ...r, person: personName, employee_id: form.employeeId, channel: form.channel, amount: parseFloat(form.amount), date: form.date, note: form.note || null } : r))
       setEditing(null); router.refresh()
     } else {
       alert('Lỗi cập nhật:\n' + (error.message ?? ''))
@@ -147,6 +170,34 @@ export default function ProjectAdvanceSection({
         </div>
       </div>
 
+      {(bySupervisor.length > 0 || unassigned.advanced > 0 || unassigned.spent > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-amber-50/40 border-b border-gray-100">
+          {bySupervisor.map(sv => (
+            <div key={sv.id} className="bg-white rounded-xl border border-amber-100 p-3">
+              <p className="text-sm font-semibold text-gray-800 mb-2">Quỹ {sv.name}</p>
+              <div className="flex gap-4 text-xs">
+                <div><p className="text-gray-500">Đã ứng</p><p className="font-bold text-gray-900 tabular-nums">{formatVND(sv.advanced)}</p></div>
+                <div><p className="text-gray-500">Đã chi</p><p className="font-bold text-blue-700 tabular-nums">{formatVND(sv.spent)}</p></div>
+                <div>
+                  <p className="text-gray-500">Còn lại</p>
+                  <p className={`font-bold tabular-nums ${sv.remaining >= 0 ? 'text-green-700' : 'text-red-600'}`}>{formatVND(sv.remaining)}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {(unassigned.advanced > 0 || unassigned.spent > 0) && (
+            <div className="bg-white rounded-xl border border-gray-200 p-3">
+              <p className="text-sm font-semibold text-gray-500 mb-2">Chưa gán giám sát viên (dữ liệu cũ)</p>
+              <div className="flex gap-4 text-xs">
+                <div><p className="text-gray-500">Đã ứng</p><p className="font-bold text-gray-700 tabular-nums">{formatVND(unassigned.advanced)}</p></div>
+                <div><p className="text-gray-500">Đã chi</p><p className="font-bold text-gray-700 tabular-nums">{formatVND(unassigned.spent)}</p></div>
+                <div><p className="text-gray-500">Còn lại</p><p className="font-bold text-gray-700 tabular-nums">{formatVND(unassigned.advanced - unassigned.spent - unassigned.returned)}</p></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
 
       {rows.length === 0 ? (
         <p className="px-5 py-6 text-sm text-gray-400 text-center italic">Chưa có khoản ứng nào. Bấm "Thêm khoản ứng".</p>
@@ -165,7 +216,7 @@ export default function ProjectAdvanceSection({
               </div>
               <span className="text-sm font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatVND(r.amount)}</span>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => { setEditing(r); setForm({ person: r.person, channel: r.channel, amount: String(r.amount), date: r.date, note: r.note || '' }) }}
+                <button onClick={() => { setEditing(r); setForm({ employeeId: r.employee_id ?? '', channel: r.channel, amount: String(r.amount), date: r.date, note: r.note || '' }) }}
                   className="p-1 text-gray-300 hover:text-blue-600 rounded">
                   <Pencil size={12} />
                 </button>
@@ -197,8 +248,11 @@ export default function ProjectAdvanceSection({
             <div className="space-y-3">
               <div>
                 <label className={LBL}>Người ứng</label>
-                <input className={INP} placeholder="VD: Hiếu" value={form.person}
-                  onChange={e => setForm(f => ({ ...f, person: e.target.value }))} />
+                <select className={INP} value={form.employeeId}
+                  onChange={e => setForm(f => ({ ...f, employeeId: e.target.value }))}>
+                  <option value="">-- Chọn giám sát viên --</option>
+                  {supervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -273,8 +327,11 @@ export default function ProjectAdvanceSection({
             <div className="space-y-3">
               <div>
                 <label className={LBL}>Người ứng</label>
-                <input className={INP} placeholder="VD: Hiếu" value={form.person}
-                  onChange={e => setForm(f => ({ ...f, person: e.target.value }))} />
+                <select className={INP} value={form.employeeId}
+                  onChange={e => setForm(f => ({ ...f, employeeId: e.target.value }))}>
+                  <option value="">-- Chọn giám sát viên --</option>
+                  {supervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -324,15 +381,37 @@ export default function ProjectAdvanceSection({
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">Chi tiết đã chi từ quỹ</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Tổng <strong className="text-blue-700">{formatVND(spent)}</strong></p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Tổng <strong className="text-blue-700">
+                    {formatVND(
+                      spentFilterId === '' ? spent
+                      : spentFilterId === '__unassigned__' ? (spentItems ?? []).filter(it => !it.advance_employee_id).reduce((s, it) => s + it.amount, 0)
+                      : (spentItems ?? []).filter(it => it.advance_employee_id === spentFilterId).reduce((s, it) => s + it.amount, 0)
+                    )}
+                  </strong>
+                </p>
               </div>
               <button onClick={() => setShowSpentDetail(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
+            {supervisors.length > 0 && (
+              <div className="px-6 py-2.5 border-b border-gray-100 shrink-0">
+                <select className={INP} value={spentFilterId} onChange={e => setSpentFilterId(e.target.value)}>
+                  <option value="">Tất cả giám sát viên</option>
+                  {supervisors.map(s => <option key={s.id} value={s.id}>Quỹ {s.name}</option>)}
+                  <option value="__unassigned__">Chưa gán giám sát viên</option>
+                </select>
+              </div>
+            )}
 
             <div className="overflow-y-auto divide-y divide-gray-50">
-              {(spentItems ?? []).length === 0 ? (
-                <p className="px-5 py-6 text-sm text-gray-400 text-center italic">Chưa có khoản chi nào từ quỹ.</p>
-              ) : (spentItems ?? []).map(it => (
+              {(() => {
+                const filtered = (spentItems ?? []).filter(it => {
+                  if (spentFilterId === '') return true
+                  if (spentFilterId === '__unassigned__') return !it.advance_employee_id
+                  return it.advance_employee_id === spentFilterId
+                })
+                if (filtered.length === 0) return <p className="px-5 py-6 text-sm text-gray-400 text-center italic">Không có khoản chi nào khớp bộ lọc.</p>
+                return filtered.map(it => (
                 <div key={it.id} className="px-5 py-3 flex items-center gap-3">
                   <span className="text-xs text-gray-400 tabular-nums w-20 shrink-0">
                     {new Date(it.date + 'T00:00:00').toLocaleDateString('vi-VN')}
@@ -342,10 +421,14 @@ export default function ProjectAdvanceSection({
                     {it.category_name && <span className="ml-2 text-xs text-gray-400">{it.category_name}</span>}
                     {it.is_labor && <span className="ml-1.5 text-xs text-purple-500">· Nhân công</span>}
                     {it.supplier && <span className="ml-1.5 text-xs text-gray-400">· {it.supplier}</span>}
+                    {it.advance_employee_id && (
+                      <span className="ml-1.5 text-xs text-amber-600">· Quỹ {supervisors.find(s => s.id === it.advance_employee_id)?.name ?? '?'}</span>
+                    )}
                   </div>
                   <span className="text-sm font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatVND(it.amount)}</span>
                 </div>
-              ))}
+                ))
+              })()}
             </div>
           </div>
         </div>

@@ -51,7 +51,7 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
     supabase.from('channel_deposits').select('id, date, description, channel, amount'),
     supabase.from('personal_loans').select('id, date, description, channel, amount, repaid_amount, repaid_channel, repaid_date'),
     supabase.from('channel_transfers').select('id, from_channel, to_channel, amount, date, note'),
-    supabase.from('transactions').select('id, description, amount, vat_amount, tncn_amount, is_labor, is_vat_allocation, contract_id, note, payment_status, payment_date, transaction_date, actual_paid, project_id'),
+    supabase.from('transactions').select('id, description, amount, vat_amount, tncn_amount, is_labor, is_vat_allocation, contract_id, note, payment_status, payment_date, transaction_date, actual_paid, payment_history, project_id'),
     supabase.from('personal_expenses').select('id, date, description, channel, amount'),
     supabase.from('operating_costs').select('id, spent_date, source_channel, description, amount'),
     supabase.from('fixed_cost_payments').select('id, paid_date, source_channel, item_name, amount'),
@@ -106,23 +106,31 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
 
   // 4) Giao dịch công trình (đã trả / trả một phần) — HĐ VAT luôn qua TK Công ty; HĐ không VAT theo note.
   // Loại giao dịch số ÂM (điều chuyển/khấu trừ chi phí giữa công trình) — không phải tiền mặt thật đổi.
+  // Khoản trả nhiều đợt (payment_history) → tách 1 dòng riêng cho TỪNG đợt theo ĐÚNG ngày của đợt
+  // đó, không gộp hết vào payment_date (ngày đợt GẦN NHẤT) — tránh lịch sử tháng trước "biến mất",
+  // dồn hết vào tháng của đợt trả cuối (bug thật đã xảy ra với khoản trả 2 đợt khác tháng nhau).
   for (const t of (transactions ?? [])) {
     if (t.is_vat_allocation) continue
     if ((t.amount ?? 0) < 0) continue
     if (t.payment_status !== 'paid' && t.payment_status !== 'partial') continue
-    const date = t.payment_date ?? t.transaction_date
-    if (!date) continue
-    const amount = t.payment_status === 'partial' ? (t.actual_paid ?? 0) : t.amount
-    if (amount <= 0) continue
     const isVatTx = (t.vat_amount ?? 0) > 0 || (t.tncn_amount ?? 0) > 0
     // GS chi từ quỹ đã ứng → không phải dòng tiền công ty mới (đã tính lúc tạm ứng), kể cả khi khoản chi có VAT.
     const ch = t.note === 'Từ quỹ ứng' ? null : (isVatTx ? 'tk_cty' : noteChannel(t.note))
     if (!ch) continue
-    entries.push({
-      id: `tx-${t.id}`, date, channel: ch, direction: 'out',
-      category: 'Giao dịch công trình', description: `${t.description}${projectName.get(t.project_id ?? '') ? ' — ' + projectName.get(t.project_id ?? '') : ''}`,
-      amount,
-    })
+    const desc = `${t.description}${projectName.get(t.project_id ?? '') ? ' — ' + projectName.get(t.project_id ?? '') : ''}`
+    const hist = (t.payment_history as { amount?: number; date?: string }[] | null) ?? []
+    if (hist.length > 0) {
+      hist.forEach((h, i) => {
+        if (!h.date || !h.amount || h.amount <= 0) return
+        entries.push({ id: `tx-${t.id}-${i}`, date: h.date, channel: ch, direction: 'out', category: 'Giao dịch công trình', description: desc, amount: h.amount })
+      })
+    } else {
+      const date = t.payment_date ?? t.transaction_date
+      if (!date) continue
+      const amount = t.payment_status === 'partial' ? (t.actual_paid ?? 0) : t.amount
+      if (amount <= 0) continue
+      entries.push({ id: `tx-${t.id}`, date, channel: ch, direction: 'out', category: 'Giao dịch công trình', description: desc, amount })
+    }
   }
 
   // 5) Chi tiêu cá nhân

@@ -239,6 +239,9 @@ export default async function OpexPage({ searchParams }: PageProps) {
   // cho khoản cũ) đã nằm ở OpexClient.inTaxPeriod, nên ở đây chỉ cần truyền nguyên danh sách xuống.
   const rangeTaxPayments = taxPayments ?? []
 
+  // ── Quỹ ứng theo từng giám sát viên ──
+  const supervisors = allEmployees.filter(e => e.is_site_supervisor).map(e => ({ id: e.id, name: e.name }))
+
   // ── Full backup data ──
   const [
     { data: allProjects }, { data: allContracts }, { data: allCategories },
@@ -250,6 +253,12 @@ export default async function OpexPage({ searchParams }: PageProps) {
     supabase.from('transactions').select('*'),
     supabase.from('revenue').select('*'),
   ])
+
+  const spentByEmployee: Record<string, number> = {}
+  for (const t of (allTransactions ?? [])) {
+    if (!t.advance_employee_id) continue
+    spentByEmployee[t.advance_employee_id] = (spentByEmployee[t.advance_employee_id] ?? 0) + (t.amount ?? 0)
+  }
 
   return (
     <OpexClient
@@ -286,6 +295,8 @@ export default async function OpexPage({ searchParams }: PageProps) {
       chotSo={chotSoSettings ?? null}
       transfers={transfers ?? []}
       siteAdvances={siteAdvances ?? []}
+      supervisors={supervisors}
+      spentByEmployee={spentByEmployee}
       fixedPayments={fixedPayments ?? []}
       taxPayments={rangeTaxPayments}
       backupData={{

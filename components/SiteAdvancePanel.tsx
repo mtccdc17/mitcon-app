@@ -9,6 +9,7 @@ import { X, Trash2, Plus } from 'lucide-react'
 export interface SiteAdvance {
   id: string
   person: string
+  employee_id?: string | null
   project?: string | null
   channel: string
   date: string
@@ -18,11 +19,15 @@ export interface SiteAdvance {
   note?: string | null
 }
 
+export interface Supervisor { id: string; name: string }
+
 const CH_LABEL: Record<string, string> = { tk_cty: 'TK Công ty', tk_cn: 'TK Cá nhân', tm: 'Tiền mặt', ocb: 'OCB', lp: 'LPBank', mb: 'MB' }
 const INP = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none'
 const LBL = 'block text-xs font-medium text-gray-600 mb-1'
 
-export default function SiteAdvancePanel({ initial }: { initial: SiteAdvance[] }) {
+export default function SiteAdvancePanel({
+  initial, supervisors = [], spentByEmployee = {},
+}: { initial: SiteAdvance[]; supervisors?: Supervisor[]; spentByEmployee?: Record<string, number> }) {
   const router = useRouter()
   const [rows, setRows] = useState(initial)
   const [showAdd, setShowAdd] = useState(false)
@@ -30,25 +35,37 @@ export default function SiteAdvancePanel({ initial }: { initial: SiteAdvance[] }
   const [settleAmount, setSettleAmount] = useState('')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    person: '', project: '', channel: 'tk_cn', amount: '',
+    employeeId: '', project: '', channel: 'tk_cn', amount: '',
     date: new Date().toISOString().split('T')[0], note: '',
   })
 
   const remainOf = (r: SiteAdvance) => Math.max(0, r.amount - (r.returned ?? 0))
   const totalHolding = rows.reduce((s, r) => s + remainOf(r), 0)
 
+  // Tổng theo từng giám sát viên — Đã chi lấy từ transactions.advance_employee_id (chính xác hơn
+  // cột `spent` thủ công cũ), không dùng cho các khoản chưa gán employee_id (dữ liệu cũ trước khi
+  // có tính năng này) — những khoản đó không tính vào quỹ của ai.
+  const bySupervisor = supervisors.map(sv => {
+    const svRows = rows.filter(r => r.employee_id === sv.id)
+    const advanced = svRows.reduce((s, r) => s + r.amount, 0)
+    const returned = svRows.reduce((s, r) => s + (r.returned ?? 0), 0)
+    const spent = spentByEmployee[sv.id] ?? 0
+    return { ...sv, advanced, returned, spent, remaining: advanced - spent - returned }
+  })
+
   async function handleAdd() {
-    if (!form.person || !form.amount) { alert('Nhập tên người ứng và số tiền.'); return }
+    if (!form.employeeId || !form.amount) { alert('Chọn người ứng và nhập số tiền.'); return }
     setSaving(true)
     const supabase = createClient()
+    const personName = supervisors.find(s => s.id === form.employeeId)?.name ?? ''
     const { data, error } = await supabase.from('site_advances').insert({
-      person: form.person, project: form.project || null, channel: form.channel,
+      person: personName, employee_id: form.employeeId, project: form.project || null, channel: form.channel,
       amount: parseFloat(form.amount), spent: 0, returned: 0, date: form.date, note: form.note || null,
     }).select().single()
     setSaving(false)
     if (!error && data) {
       setRows([data as SiteAdvance, ...rows]); setShowAdd(false)
-      setForm(f => ({ ...f, person: '', project: '', amount: '', note: '' }))
+      setForm(f => ({ ...f, employeeId: '', project: '', amount: '', note: '' }))
       router.refresh()
     } else if (error) {
       alert('Lỗi ghi tạm ứng:\n' + (error.message ?? '') + (error.code ? `\n[${error.code}]` : ''))
@@ -94,6 +111,24 @@ export default function SiteAdvancePanel({ initial }: { initial: SiteAdvance[] }
           <Plus size={13} /> Ghi tạm ứng
         </button>
       </div>
+
+      {bySupervisor.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-orange-50/40 border-b border-gray-100">
+          {bySupervisor.map(sv => (
+            <div key={sv.id} className="bg-white rounded-xl border border-orange-100 p-3">
+              <p className="text-sm font-semibold text-gray-800 mb-2">Quỹ {sv.name}</p>
+              <div className="flex gap-4 text-xs">
+                <div><p className="text-gray-500">Đã ứng</p><p className="font-bold text-gray-900 tabular-nums">{formatVND(sv.advanced)}</p></div>
+                <div><p className="text-gray-500">Đã chi</p><p className="font-bold text-blue-700 tabular-nums">{formatVND(sv.spent)}</p></div>
+                <div>
+                  <p className="text-gray-500">Còn lại</p>
+                  <p className={`font-bold tabular-nums ${sv.remaining >= 0 ? 'text-green-700' : 'text-red-600'}`}>{formatVND(sv.remaining)}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <p className="px-5 py-8 text-sm text-gray-400 text-center italic">Chưa có khoản tạm ứng nào.</p>
@@ -162,8 +197,11 @@ export default function SiteAdvancePanel({ initial }: { initial: SiteAdvance[] }
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={LBL}>Người ứng</label>
-                  <input className={INP} placeholder="VD: Hiếu" value={form.person}
-                    onChange={e => setForm(f => ({ ...f, person: e.target.value }))} />
+                  <select className={INP} value={form.employeeId}
+                    onChange={e => setForm(f => ({ ...f, employeeId: e.target.value }))}>
+                    <option value="">-- Chọn giám sát viên --</option>
+                    {supervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className={LBL}>Công trình (tuỳ chọn)</label>

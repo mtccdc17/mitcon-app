@@ -109,6 +109,13 @@ export default function PersonalExpensesTab({
   const [editingLoan, setEditingLoan] = useState<PersonalLoan | null>(null)
   const [loanEditForm, setLoanEditForm] = useState({ date: '', description: '', amount: '', channel: 'tk_cn', notes: '' })
 
+  // Danh mục = chữ tự do trong DB — gộp danh sách mặc định + mọi danh mục đã từng dùng, để
+  // Sếp bổ sung danh mục mới 1 lần là các lần sau tự có trong danh sách chọn.
+  const allCategoryOptions = Array.from(new Set([...CATEGORY_OPTIONS, ...expenses.map(e => e.category)])).filter(Boolean)
+  const [expCategoryCustom, setExpCategoryCustom] = useState(false)
+  const [editCategoryCustom, setEditCategoryCustom] = useState(false)
+  const NEW_CATEGORY = '__new__'
+
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0)
   const sumCh = (ch: string) => expenses.filter(e => e.channel === ch).reduce((s, e) => s + e.amount, 0)
   const expByChannel = {
@@ -153,6 +160,7 @@ export default function PersonalExpensesTab({
 
   function openEditExpense(e: PersonalExpense) {
     setEditForm({ date: e.date, description: e.description, category: e.category, channel: e.channel, amount: String(e.amount), notes: e.notes ?? '' })
+    setEditCategoryCustom(!allCategoryOptions.includes(e.category))
     setEditingExpense(e)
   }
 
@@ -653,10 +661,20 @@ export default function PersonalExpensesTab({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={LBL}>Danh mục</label>
-                  <select className={INP} value={expForm.category}
-                    onChange={ev => setExpForm(f => ({ ...f, category: ev.target.value }))}>
-                    {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  {expCategoryCustom ? (
+                    <input type="text" autoFocus className={INP} placeholder="Nhập danh mục mới..." value={expForm.category}
+                      onChange={ev => setExpForm(f => ({ ...f, category: ev.target.value }))}
+                      onBlur={() => { if (!expForm.category.trim()) { setExpCategoryCustom(false); setExpForm(f => ({ ...f, category: 'Sinh hoạt' })) } }} />
+                  ) : (
+                    <select className={INP} value={expForm.category}
+                      onChange={ev => {
+                        if (ev.target.value === NEW_CATEGORY) { setExpCategoryCustom(true); setExpForm(f => ({ ...f, category: '' })) }
+                        else setExpForm(f => ({ ...f, category: ev.target.value }))
+                      }}>
+                      {allCategoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                      <option value={NEW_CATEGORY}>+ Thêm danh mục mới...</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className={LBL}>Kênh rút</label>
@@ -677,7 +695,7 @@ export default function PersonalExpensesTab({
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowAddExpense(false)}
+              <button onClick={() => { setShowAddExpense(false); setExpCategoryCustom(false) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
                 Huỷ
               </button>
@@ -719,10 +737,20 @@ export default function PersonalExpensesTab({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={LBL}>Danh mục</label>
-                  <select className={INP} value={editForm.category}
-                    onChange={ev => setEditForm(f => ({ ...f, category: ev.target.value }))}>
-                    {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  {editCategoryCustom ? (
+                    <input type="text" autoFocus className={INP} placeholder="Nhập danh mục mới..." value={editForm.category}
+                      onChange={ev => setEditForm(f => ({ ...f, category: ev.target.value }))}
+                      onBlur={() => { if (!editForm.category.trim()) setEditCategoryCustom(false) }} />
+                  ) : (
+                    <select className={INP} value={editForm.category}
+                      onChange={ev => {
+                        if (ev.target.value === NEW_CATEGORY) { setEditCategoryCustom(true); setEditForm(f => ({ ...f, category: '' })) }
+                        else setEditForm(f => ({ ...f, category: ev.target.value }))
+                      }}>
+                      {allCategoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                      <option value={NEW_CATEGORY}>+ Thêm danh mục mới...</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className={LBL}>Kênh rút</label>

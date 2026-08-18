@@ -83,6 +83,8 @@ interface Props {
   chotSo: ChotSoSettings | null
   transfers: Transfer[]
   siteAdvances: SiteAdvance[]
+  supervisors?: { id: string; name: string }[]
+  spentByEmployee?: Record<string, number>
   fixedPayments: FixedPayment[]
   taxPayments: TaxPayment[]
   backupData: {
@@ -97,7 +99,7 @@ export default function OpexClient({
   fixedCoDinh, fixedNhanSu, payrollTN1, payrollTN2, payrollBhxhNLD, payrollBhxhCTY, ceoBhxh,
   designFreelance, adsCosts, otherCosts, tncnThauPhu, thueBu, vatDauRa, vatDauVao, vatMethod,
   profitTable, taxTable,
-  cashflow, chotSo, transfers, siteAdvances,
+  cashflow, chotSo, transfers, siteAdvances, supervisors, spentByEmployee,
   fixedPayments, taxPayments,
   backupData,
 }: Props) {
@@ -472,7 +474,7 @@ export default function OpexClient({
         </div>
         <CashflowBox cashflow={cashflow} />
         <ChuyenTienPanel initial={transfers} />
-        <SiteAdvancePanel initial={siteAdvances} />
+        <SiteAdvancePanel initial={siteAdvances} supervisors={supervisors} spentByEmployee={spentByEmployee} />
       </div>
 
       {/* ── Modal chi phí phát sinh ── */}

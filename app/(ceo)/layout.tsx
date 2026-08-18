@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getUser, getProfile } from '@/lib/supabase/cached'
 import Link from 'next/link'
-import { LayoutDashboard, DollarSign, Shield } from 'lucide-react'
+import { LayoutDashboard, DollarSign, Shield, Wallet, Calculator } from 'lucide-react'
 
 export default async function CeoLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser()
@@ -24,6 +24,8 @@ export default async function CeoLayout({ children }: { children: React.ReactNod
             </div>
             <nav className="flex items-center gap-1">
               <CeoNavLink href="/ceo/opex" icon={<DollarSign size={14} />} label="Chi phí vận hành" />
+              <CeoNavLink href="/ceo/advance-settlement" icon={<Calculator size={14} />} label="Quyết toán tạm ứng" />
+              <CeoNavLink href="/ceo/chi-tieu-ca-nhan" icon={<Wallet size={14} />} label="Chi tiêu cá nhân" />
               <CeoNavLink href="/ceo/security" icon={<Shield size={14} />} label="Bảo mật" />
               <Link href="/dashboard" className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
                 <LayoutDashboard size={14} />

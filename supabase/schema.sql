@@ -246,6 +246,34 @@ CREATE TRIGGER trg_transactions_updated BEFORE UPDATE ON transactions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_opex_updated BEFORE UPDATE ON operating_costs
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trg_site_advances_updated BEFORE UPDATE ON site_advances
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- =============================================
+-- SITE ADVANCES (Tạm ứng công trình)
+-- =============================================
+CREATE TABLE site_advances (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  project_name TEXT NOT NULL,
+  employee_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  person_name TEXT NOT NULL,
+  channel TEXT DEFAULT 'tk_cn',  -- tk_cty, tk_cn, tm
+  amount BIGINT NOT NULL DEFAULT 0,
+  returned BIGINT DEFAULT 0,
+  note TEXT,
+  date DATE NOT NULL,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE site_advances ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "site_advances_select" ON site_advances FOR SELECT
+  USING (auth.role() = 'authenticated');
+CREATE POLICY "site_advances_write" ON site_advances FOR ALL
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('ceo', 'ketoan')));
 
 -- =============================================
 -- INDEXES
@@ -255,3 +283,5 @@ CREATE INDEX idx_transactions_category ON transactions(category_id);
 CREATE INDEX idx_audit_transaction ON audit_logs(transaction_id);
 CREATE INDEX idx_revenue_project ON revenue(project_id);
 CREATE INDEX idx_opex_month_year ON operating_costs(year, month);
+CREATE INDEX idx_site_advances_project ON site_advances(project_id);
+CREATE INDEX idx_site_advances_employee ON site_advances(employee_id);

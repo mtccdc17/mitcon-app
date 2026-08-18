@@ -37,6 +37,7 @@ export default async function ProjectPage({
     { data: transactions },
     { data: revenue },
     { data: siteAdvances },
+    { data: supervisors },
     { data: allProjects },
     { data: allCategories },
     { data: allocatedFromHere },
@@ -47,6 +48,7 @@ export default async function ProjectPage({
     supabase.from('transactions').select('*, profiles(full_name, role)').eq('project_id', id).order('transaction_date', { ascending: false }),
     supabase.from('revenue').select('*').eq('project_id', id).order('created_at'),
     supabase.from('site_advances').select('*').eq('project_id', id).order('date', { ascending: false }),
+    supabase.from('employees').select('id, name').eq('is_site_supervisor', true).order('sort_order'),
     // Tra tên công trình/hạng mục gốc cho các dòng "Phân bổ VAT" trong project này
     supabase.from('projects').select('id, name'),
     supabase.from('categories').select('id, name'),
@@ -71,6 +73,7 @@ export default async function ProjectPage({
       category_name: t.category_id ? (categoryNameForAdvance[t.category_id] ?? null) : null,
       supplier: t.supplier ?? null,
       is_labor: t.is_labor,
+      advance_employee_id: t.advance_employee_id ?? null,
       amount: t.amount ?? 0,
     }))
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -124,6 +127,7 @@ export default async function ProjectPage({
       revenue={revenue ?? []}
       auditLogs={auditLogs ?? []}
       siteAdvances={siteAdvances ?? []}
+      supervisors={supervisors ?? []}
       advanceSpent={advanceSpent}
       advanceSpentItems={advanceSpentItems}
       projectNameMap={projectNameMap}

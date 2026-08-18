@@ -54,6 +54,7 @@ interface Props {
   revenue: Revenue[]
   auditLogs: AuditLog[]
   siteAdvances: ProjectAdvance[]
+  supervisors?: { id: string; name: string }[]
   advanceSpent: number
   advanceSpentItems: AdvanceSpentItem[]
   projectNameMap: Record<string, string>
@@ -69,7 +70,7 @@ interface Props {
 type TabId = 'vat' | 'no_vat' | 'revenue' | 'audit'
 
 export default function ProjectDetail({
-  project, contracts, categories, transactions, revenue, auditLogs, siteAdvances, advanceSpent, advanceSpentItems,
+  project, contracts, categories, transactions, revenue, auditLogs, siteAdvances, supervisors, advanceSpent, advanceSpentItems,
   projectNameMap, categoryNameMap, reverseAlloc, incomingVatAlloc,
   role, userId, userName, editTxId
 }: Props) {
@@ -548,7 +549,7 @@ export default function ProjectDetail({
       )}
 
       {/* Tạm ứng CP giám sát công trình */}
-      <ProjectAdvanceSection projectId={project.id} projectName={project.name} advances={siteAdvances} spent={advanceSpent} spentItems={advanceSpentItems} />
+      <ProjectAdvanceSection projectId={project.id} projectName={project.name} advances={siteAdvances} spent={advanceSpent} spentItems={advanceSpentItems} supervisors={supervisors} />
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -595,6 +596,7 @@ export default function ProjectDetail({
           reverseAlloc={reverseAlloc}
           incomingVatAlloc={incomingVatAlloc}
           projectId={project.id}
+          supervisors={supervisors}
         />
       )}
 
@@ -935,7 +937,7 @@ function ContractTab({
   contract, categories, txByCategory, txByContract, isVat, canEdit,
   expandedCats, toggleCat, onAddTx, onAddCategory, role, userId,
   canSeeHs, txVerified, toggleTxVerified, otherContractId,
-  projectNameMap, categoryNameMap, reverseAlloc, incomingVatAlloc, projectId,
+  projectNameMap, categoryNameMap, reverseAlloc, incomingVatAlloc, projectId, supervisors,
 }: {
   contract?: Contract
   categories: Category[]
@@ -958,7 +960,9 @@ function ContractTab({
   reverseAlloc: Record<string, { total: number; dests: { name: string; amount: number }[] }>
   incomingVatAlloc: { total: number; items: { id: string; amount: number; description: string; date: string; destCategoryId: string | null; sourceProjectName: string; sourceCategoryName: string }[] }
   projectId: string
+  supervisors?: { id: string; name: string }[]
 }) {
+  const supervisorName = new Map((supervisors ?? []).map(s => [s.id, s.name]))
   const [selectedCatIds, setSelectedCatIds] = useState<Set<string>>(() => new Set(categories.map(c => c.id)))
   const [showFilter, setShowFilter] = useState(false)
   const [editTx, setEditTx] = useState<Transaction | null>(null)
@@ -1389,7 +1393,11 @@ function ContractTab({
                                 → Phân bổ {formatVND(tx.vat_dest_amount ?? 0)} cho {projectNameMap[tx.vat_dest_project_id] ?? '?'} · {categoryNameMap[tx.vat_dest_category_id ?? ''] ?? '?'}
                               </div>
                             )}
-                            {tx.note && <span className={`inline-flex mt-0.5 px-1.5 py-0 rounded text-xs font-medium ${NOTE_COLOR[tx.note] ?? 'bg-gray-100 text-gray-600'}`}>{tx.note}</span>}
+                            {tx.note && (
+                              <span className={`inline-flex mt-0.5 px-1.5 py-0 rounded text-xs font-medium ${NOTE_COLOR[tx.note] ?? 'bg-gray-100 text-gray-600'}`}>
+                                {tx.note}{tx.note === 'Từ quỹ ứng' && tx.advance_employee_id && ` (${supervisorName.get(tx.advance_employee_id) ?? '?'})`}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right font-medium whitespace-nowrap">
                             {tx.is_vat_allocation
@@ -1647,7 +1655,11 @@ function ContractTab({
                                       → Phân bổ {formatVND(tx.vat_dest_amount ?? 0)} cho {projectNameMap[tx.vat_dest_project_id] ?? '?'} · {categoryNameMap[tx.vat_dest_category_id ?? ''] ?? '?'}
                                     </div>
                                   )}
-                                  {tx.note && <span className={`inline-flex mt-0.5 px-1.5 py-0 rounded text-xs font-medium ${NOTE_COLOR[tx.note] ?? 'bg-gray-100 text-gray-600'}`}>{tx.note}</span>}
+                                  {tx.note && (
+                              <span className={`inline-flex mt-0.5 px-1.5 py-0 rounded text-xs font-medium ${NOTE_COLOR[tx.note] ?? 'bg-gray-100 text-gray-600'}`}>
+                                {tx.note}{tx.note === 'Từ quỹ ứng' && tx.advance_employee_id && ` (${supervisorName.get(tx.advance_employee_id) ?? '?'})`}
+                              </span>
+                            )}
                                 </td>
                                 <td className="px-5 py-2.5 text-right font-medium whitespace-nowrap">
                                   {tx.is_vat_allocation
@@ -1906,6 +1918,8 @@ function EditTransactionModal({ tx, categories, isVat, userId, role, projectId, 
   const [categoryId, setCategoryId] = useState(tx.category_id ?? '')
   const [supplier, setSupplier] = useState(tx.supplier ?? '')
   const [note, setNote] = useState(tx.note ?? '')
+  const [advanceEmployeeId, setAdvanceEmployeeId] = useState(tx.advance_employee_id ?? '')
+  const [supervisors, setSupervisors] = useState<{ id: string; name: string }[]>([])
   const [supplierList, setSupplierList] = useState<{ id: string; name: string; tax_code?: string; phone?: string }[]>([])
   const [showSupplierDrop, setShowSupplierDrop] = useState(false)
 
@@ -1961,6 +1975,8 @@ function EditTransactionModal({ tx, categories, isVat, userId, role, projectId, 
   useEffect(() => {
     supabase.from('suppliers').select('id, name, tax_code, phone').order('name')
       .then(({ data }) => { if (data) setSupplierList(data) })
+    supabase.from('employees').select('id, name').eq('is_site_supervisor', true).order('sort_order')
+      .then(({ data }) => { if (data) setSupervisors(data) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -2024,6 +2040,7 @@ function EditTransactionModal({ tx, categories, isVat, userId, role, projectId, 
       category_id: categoryId || tx.category_id,
       supplier: supplier || null,
       note: note || null,
+      advance_employee_id: note === 'Từ quỹ ứng' ? (advanceEmployeeId || null) : null,
       payment_date: lastPayDate || null,
       next_payment_date: null,
       actual_paid: finalActualPaid,
@@ -2410,6 +2427,16 @@ function EditTransactionModal({ tx, categories, isVat, userId, role, projectId, 
               <option value="Từ quỹ ứng">GS chi từ quỹ đã ứng</option>
             </select>
           </div>
+          {note === 'Từ quỹ ứng' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Chi từ quỹ của</label>
+              <select value={advanceEmployeeId} onChange={e => setAdvanceEmployeeId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">-- Chọn giám sát viên --</option>
+                {supervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
             <button type="button" onClick={onClose}
               className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Hủy</button>
