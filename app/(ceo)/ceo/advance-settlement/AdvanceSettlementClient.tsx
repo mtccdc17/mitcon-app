@@ -9,9 +9,9 @@ import { CheckCircle2, AlertCircle, Pencil, Trash2, X, History } from 'lucide-re
 interface SiteAdvance {
   id: string
   project_id: string
-  project_name: string
+  project: string
   employee_id: string | null
-  person_name: string
+  person: string
   channel: string
   amount: number
   returned: number
@@ -75,7 +75,7 @@ export default function AdvanceSettlementClient({
       const byProject = empAdvances.reduce(
         (acc, adv) => {
           if (!acc[adv.project_id]) {
-            acc[adv.project_id] = { name: adv.project_name, advances: [] }
+            acc[adv.project_id] = { name: adv.project, advances: [] }
           }
           acc[adv.project_id].advances.push(adv)
           return acc
@@ -142,9 +142,9 @@ export default function AdvanceSettlementClient({
         const companyOwes = summary.remaining < 0 // spent > advanced → công ty nợ giám sát
         rows.push({
           project_id: projId,
-          project_name: summary.name,
+          project: summary.name,
           employee_id: settling.empId,
-          person_name: settling.empName,
+          person: settling.empName,
           channel: settleChannel,
           amount: companyOwes ? Math.abs(summary.remaining) : 0,
           returned: companyOwes ? 0 : summary.remaining,
@@ -307,7 +307,7 @@ export default function AdvanceSettlementClient({
                           <span className="text-gray-400 w-20 shrink-0">
                             {new Date(h.date + 'T00:00:00').toLocaleDateString('vi-VN')}
                           </span>
-                          <span className="flex-1 min-w-0 text-gray-600 truncate">{h.project_name} · {h.note}</span>
+                          <span className="flex-1 min-w-0 text-gray-600 truncate">{h.project} · {h.note}</span>
                           <span className="font-semibold text-gray-900 tabular-nums">
                             {h.amount > 0 ? `+${formatVND(h.amount)}` : `-${formatVND(h.returned)}`}
                           </span>
@@ -437,7 +437,7 @@ export default function AdvanceSettlementClient({
               <button onClick={() => setEditingSettlement(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
             <div className="p-4 space-y-3">
-              <p className="text-xs text-gray-500">{editingSettlement.project_name} · {editingSettlement.person_name}</p>
+              <p className="text-xs text-gray-500">{editingSettlement.project} · {editingSettlement.person}</p>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Số tiền công ty trả GS (amount)</label>
                 <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right"
