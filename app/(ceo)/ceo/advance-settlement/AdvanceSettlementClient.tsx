@@ -126,6 +126,13 @@ export default function AdvanceSettlementClient({
     }))
     .filter(emp => emp.projSummary.length > 0)
 
+  // Lịch sử toàn bộ tạm ứng công trình (mọi khoản, kể cả chưa gán giám sát) — theo bộ lọc trên
+  const filteredAdvances = advances
+    .filter(a => !filterEmployee || a.employee_id === filterEmployee)
+    .filter(a => !filterProject || a.project_id === filterProject)
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+
   async function handleSettle() {
     if (!settling) return
     setSaving(true)
@@ -354,6 +361,55 @@ export default function AdvanceSettlementClient({
             <p>Không có dữ liệu tạm ứng</p>
           </div>
         )}
+
+        {/* Lịch sử toàn bộ tạm ứng công trình */}
+        <div className="bg-white rounded-lg shadow overflow-hidden mt-6">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-800">Lịch sử toàn bộ tạm ứng công trình</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Ứng = tiền RA khỏi kênh nguồn · {filteredAdvances.length} khoản</p>
+          </div>
+          {filteredAdvances.length === 0 ? (
+            <p className="px-5 py-8 text-sm text-gray-400 text-center italic">Chưa có khoản tạm ứng nào.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] text-gray-500 border-b border-gray-100">
+                    <th className="text-left px-5 py-2.5 font-medium">Ngày</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Người ứng</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Công trình</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Kênh</th>
+                    <th className="text-right px-4 py-2.5 font-medium">Đã ứng</th>
+                    <th className="text-right px-4 py-2.5 font-medium">Trả lại</th>
+                    <th className="text-right px-5 py-2.5 font-medium">Chưa hoàn</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredAdvances.map(r => {
+                    const remaining = r.amount - (r.returned ?? 0)
+                    const done = remaining <= 0
+                    const isSettlement = r.note?.startsWith(SETTLE_PREFIX)
+                    return (
+                      <tr key={r.id} className={`hover:bg-gray-50/50 ${isSettlement ? 'bg-orange-50/30' : ''}`}>
+                        <td className="px-5 py-3 text-gray-500 text-xs tabular-nums whitespace-nowrap">
+                          {new Date(r.date + 'T00:00:00').toLocaleDateString('vi-VN')}
+                        </td>
+                        <td className="px-4 py-3 text-gray-900 font-medium">{r.person}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{r.project ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{CH_LABEL[r.channel] ?? r.channel}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-xs whitespace-nowrap">{formatVND(r.amount)}</td>
+                        <td className="px-4 py-3 text-right text-green-600 tabular-nums text-xs whitespace-nowrap">{formatVND(r.returned ?? 0)}</td>
+                        <td className="px-5 py-3 text-right font-bold tabular-nums whitespace-nowrap">
+                          <span className={done ? 'text-green-600' : 'text-orange-600'}>{formatVND(remaining)}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Settle Modal */}
