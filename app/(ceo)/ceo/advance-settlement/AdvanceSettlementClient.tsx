@@ -57,6 +57,7 @@ export default function AdvanceSettlementClient({
   const [settling, setSettling] = useState<{ empId: string; empName: string; projIds: string[] } | null>(null)
   const [settleNote, setSettleNote] = useState('')
   const [settleChannel, setSettleChannel] = useState('tk_cty')
+  const [settleDate, setSettleDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
   const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
   const [editingSettlement, setEditingSettlement] = useState<SiteAdvance | null>(null)
@@ -148,7 +149,7 @@ export default function AdvanceSettlementClient({
           amount: companyOwes ? Math.abs(summary.remaining) : 0,
           returned: companyOwes ? 0 : summary.remaining,
           note: `${SETTLE_PREFIX}${settleNote ? ' | ' + settleNote : ''}`,
-          date: new Date().toISOString().split('T')[0],
+          date: settleDate,
           created_by: userId,
         })
       }
@@ -333,7 +334,7 @@ export default function AdvanceSettlementClient({
               {/* Settle Button */}
               <div className="bg-gray-100 px-4 py-3 border-t flex justify-end">
                 <button
-                  onClick={() => setSettling({ empId: emp.empId, empName: emp.empName, projIds: emp.projSummary.map(p => p.projId) })}
+                  onClick={() => { setSettleDate(new Date().toISOString().split('T')[0]); setSettling({ empId: emp.empId, empName: emp.empName, projIds: emp.projSummary.map(p => p.projId) }) }}
                   disabled={emp.totalRemaining === 0}
                   className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-lg font-medium text-sm transition"
                 >
@@ -369,6 +370,15 @@ export default function AdvanceSettlementClient({
                 <p className="text-sm font-medium text-gray-900">
                   {settling.projIds.map(id => projects.find(p => p.id === id)?.name).join(' + ')}
                 </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Ngày chốt (ghi vào lịch sử dòng tiền):</p>
+                <input
+                  type="date"
+                  value={settleDate}
+                  onChange={e => setSettleDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-2">Kênh tiền (khi công ty phải trả GS):</p>
