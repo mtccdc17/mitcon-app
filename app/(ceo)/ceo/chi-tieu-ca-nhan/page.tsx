@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { computeCashflow } from '@/lib/cashflow'
 import CashflowBox from '@/components/CashflowBox'
+import CashflowHistoryModal from '@/components/CashflowHistoryModal'
+import CashflowAsOfModal from '@/components/CashflowAsOfModal'
 import PersonalExpensesTab from '@/app/(app)/revenue/PersonalExpensesTab'
 
 export default async function ChiTieuCaNhanPage() {
@@ -22,6 +24,7 @@ export default async function ChiTieuCaNhanPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
       <h1 className="text-lg font-semibold text-gray-900">Chi tiêu cá nhân</h1>
+      <div className="flex items-center justify-end gap-2"><CashflowHistoryModal /><CashflowAsOfModal /></div>
       <CashflowBox cashflow={cashflow} />
       <PersonalExpensesTab
         initialExpenses={personalExpenses ?? []}
