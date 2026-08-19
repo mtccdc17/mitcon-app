@@ -64,6 +64,8 @@ export default function AdvanceSettlementClient({
   const [editAmount, setEditAmount] = useState('')
   const [editReturned, setEditReturned] = useState('')
   const [editNote, setEditNote] = useState('')
+  const [editChannel, setEditChannel] = useState('tk_cty')
+  const [editDate, setEditDate] = useState('')
 
   // Nhóm theo employee
   const byEmployee = employees
@@ -186,6 +188,8 @@ export default function AdvanceSettlementClient({
         amount: parseFloat(editAmount) || 0,
         returned: parseFloat(editReturned) || 0,
         note: editNote || SETTLE_PREFIX,
+        channel: editChannel,
+        date: editDate,
       })
       .eq('id', editingSettlement.id)
     setSaving(false)
@@ -312,7 +316,7 @@ export default function AdvanceSettlementClient({
                             {h.amount > 0 ? `+${formatVND(h.amount)}` : `-${formatVND(h.returned)}`}
                           </span>
                           <button
-                            onClick={() => { setEditingSettlement(h); setEditAmount(String(h.amount)); setEditReturned(String(h.returned)); setEditNote(h.note ?? '') }}
+                            onClick={() => { setEditingSettlement(h); setEditAmount(String(h.amount)); setEditReturned(String(h.returned)); setEditNote(h.note ?? ''); setEditChannel(h.channel || 'tk_cty'); setEditDate(h.date) }}
                             className="p-1 text-gray-300 hover:text-blue-600 rounded"
                           >
                             <Pencil size={12} />
@@ -447,6 +451,20 @@ export default function AdvanceSettlementClient({
                 <label className="block text-xs font-medium text-gray-600 mb-1">Số tiền GS trả công ty (returned)</label>
                 <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right"
                   value={editReturned} onChange={e => setEditReturned(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Ngày ghi nhận</label>
+                <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={editDate} onChange={e => setEditDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Kênh tiền</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={editChannel} onChange={e => setEditChannel(e.target.value)}>
+                  {Object.entries(CH_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
