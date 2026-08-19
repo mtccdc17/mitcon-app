@@ -150,7 +150,6 @@ export default function AdvanceSettlementClient({
           returned: companyOwes ? 0 : summary.remaining,
           note: `${SETTLE_PREFIX}${settleNote ? ' | ' + settleNote : ''}`,
           date: settleDate,
-          created_by: userId,
         })
       }
 
