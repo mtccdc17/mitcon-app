@@ -225,12 +225,11 @@ export default async function OpexPage({ searchParams }: PageProps) {
   // ── Cashflow + panel giữ nguyên ──
   const cashflow = await computeCashflow(supabase)
   const [
-    { data: chotSoSettings }, { data: transfers }, { data: siteAdvances },
+    { data: chotSoSettings }, { data: transfers },
     { data: fixedPayments }, { data: taxPayments },
   ] = await Promise.all([
     supabase.from('cashflow_settings').select('*').eq('id', 1).maybeSingle(),
     supabase.from('channel_transfers').select('*').order('date', { ascending: false }),
-    supabase.from('site_advances').select('*').order('date', { ascending: false }),
     supabase.from('fixed_cost_payments').select('*').eq('year', year),
     supabase.from('tax_payments').select('*').order('paid_date', { ascending: false }),
   ])
@@ -238,9 +237,6 @@ export default async function OpexPage({ searchParams }: PageProps) {
   // nộp thật ở ngày khác kỳ nó thuộc về. Việc lọc theo for_month/for_year (kèm fallback paid_date
   // cho khoản cũ) đã nằm ở OpexClient.inTaxPeriod, nên ở đây chỉ cần truyền nguyên danh sách xuống.
   const rangeTaxPayments = taxPayments ?? []
-
-  // ── Quỹ ứng theo từng giám sát viên ──
-  const supervisors = allEmployees.filter(e => e.is_site_supervisor).map(e => ({ id: e.id, name: e.name }))
 
   // ── Full backup data ──
   const [
@@ -253,12 +249,6 @@ export default async function OpexPage({ searchParams }: PageProps) {
     supabase.from('transactions').select('*'),
     supabase.from('revenue').select('*'),
   ])
-
-  const spentByEmployee: Record<string, number> = {}
-  for (const t of (allTransactions ?? [])) {
-    if (!t.advance_employee_id) continue
-    spentByEmployee[t.advance_employee_id] = (spentByEmployee[t.advance_employee_id] ?? 0) + (t.amount ?? 0)
-  }
 
   return (
     <OpexClient
@@ -294,9 +284,6 @@ export default async function OpexPage({ searchParams }: PageProps) {
       cashflow={cashflow}
       chotSo={chotSoSettings ?? null}
       transfers={transfers ?? []}
-      siteAdvances={siteAdvances ?? []}
-      supervisors={supervisors}
-      spentByEmployee={spentByEmployee}
       fixedPayments={fixedPayments ?? []}
       taxPayments={rangeTaxPayments}
       backupData={{

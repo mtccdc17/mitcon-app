@@ -12,7 +12,6 @@ import CashflowHistoryModal from '@/components/CashflowHistoryModal'
 import CashflowAsOfModal from '@/components/CashflowAsOfModal'
 import ChotSoButton, { ChotSoSettings } from '@/components/ChotSoButton'
 import ChuyenTienPanel, { Transfer } from '@/components/ChuyenTienPanel'
-import SiteAdvancePanel, { SiteAdvance } from '@/components/SiteAdvancePanel'
 import { fixedPayDate, type FixedItem } from '@/lib/opexFixed'
 
 const COST_TYPES = [
@@ -82,9 +81,6 @@ interface Props {
   cashflow: CashflowData
   chotSo: ChotSoSettings | null
   transfers: Transfer[]
-  siteAdvances: SiteAdvance[]
-  supervisors?: { id: string; name: string }[]
-  spentByEmployee?: Record<string, number>
   fixedPayments: FixedPayment[]
   taxPayments: TaxPayment[]
   backupData: {
@@ -99,7 +95,7 @@ export default function OpexClient({
   fixedCoDinh, fixedNhanSu, payrollTN1, payrollTN2, payrollBhxhNLD, payrollBhxhCTY, ceoBhxh,
   designFreelance, adsCosts, otherCosts, tncnThauPhu, thueBu, vatDauRa, vatDauVao, vatMethod,
   profitTable, taxTable,
-  cashflow, chotSo, transfers, siteAdvances, supervisors, spentByEmployee,
+  cashflow, chotSo, transfers,
   fixedPayments, taxPayments,
   backupData,
 }: Props) {
@@ -474,7 +470,6 @@ export default function OpexClient({
         </div>
         <CashflowBox cashflow={cashflow} />
         <ChuyenTienPanel initial={transfers} />
-        <SiteAdvancePanel initial={siteAdvances} supervisors={supervisors} spentByEmployee={spentByEmployee} />
       </div>
 
       {/* ── Modal chi phí phát sinh ── */}

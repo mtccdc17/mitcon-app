@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatVND } from '@/lib/utils'
-import { CheckCircle2, AlertCircle, Pencil, Trash2, X, History } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Pencil, Trash2, X, History, Plus } from 'lucide-react'
 
 interface SiteAdvance {
   id: string
@@ -66,6 +66,20 @@ export default function AdvanceSettlementClient({
   const [editNote, setEditNote] = useState('')
   const [editChannel, setEditChannel] = useState('tk_cty')
   const [editDate, setEditDate] = useState('')
+
+  // Ghi tạm ứng mới
+  const [showAddAdvance, setShowAddAdvance] = useState(false)
+  const [addForm, setAddForm] = useState({
+    employeeId: '', projectId: '', channel: 'tk_cn', amount: '',
+    date: new Date().toISOString().split('T')[0], note: '',
+  })
+
+  // Sửa/xóa 1 khoản tạm ứng bất kỳ trong bảng lịch sử đầy đủ
+  const [editingAdvance, setEditingAdvance] = useState<SiteAdvance | null>(null)
+  const [advForm, setAdvForm] = useState({
+    employeeId: '', projectId: '', channel: 'tk_cn', amount: '', returned: '',
+    date: '', note: '',
+  })
 
   // Nhóm theo employee
   const byEmployee = employees
@@ -216,11 +230,88 @@ export default function AdvanceSettlementClient({
     else alert('Lỗi xóa:\n' + error.message)
   }
 
+  async function handleAddAdvance() {
+    if (!addForm.employeeId || !addForm.projectId || !addForm.amount) {
+      alert('Chọn giám sát, công trình và nhập số tiền.')
+      return
+    }
+    setSaving(true)
+    const supabase = createClient()
+    const emp = employees.find(e => e.id === addForm.employeeId)
+    const proj = projects.find(p => p.id === addForm.projectId)
+    const { error } = await supabase.from('site_advances').insert({
+      project_id: addForm.projectId,
+      project: proj?.name ?? '',
+      employee_id: addForm.employeeId,
+      person: emp?.name ?? '',
+      channel: addForm.channel,
+      amount: parseFloat(addForm.amount),
+      returned: 0,
+      date: addForm.date,
+      note: addForm.note || null,
+    })
+    setSaving(false)
+    if (!error) {
+      setShowAddAdvance(false)
+      setAddForm(f => ({ ...f, employeeId: '', projectId: '', amount: '', note: '' }))
+      router.refresh()
+    } else {
+      alert('Lỗi ghi tạm ứng:\n' + error.message)
+    }
+  }
+
+  async function handleUpdateAdvance() {
+    if (!editingAdvance || !advForm.employeeId || !advForm.projectId) return
+    setSaving(true)
+    const supabase = createClient()
+    const emp = employees.find(e => e.id === advForm.employeeId)
+    const proj = projects.find(p => p.id === advForm.projectId)
+    const { error } = await supabase
+      .from('site_advances')
+      .update({
+        project_id: advForm.projectId,
+        project: proj?.name ?? '',
+        employee_id: advForm.employeeId,
+        person: emp?.name ?? '',
+        channel: advForm.channel,
+        amount: parseFloat(advForm.amount) || 0,
+        returned: parseFloat(advForm.returned) || 0,
+        date: advForm.date,
+        note: advForm.note || null,
+      })
+      .eq('id', editingAdvance.id)
+    setSaving(false)
+    if (!error) {
+      setEditingAdvance(null)
+      router.refresh()
+    } else {
+      alert('Lỗi cập nhật:\n' + error.message)
+    }
+  }
+
+  async function handleDeleteAdvance(id: string) {
+    if (!confirm('Xóa khoản tạm ứng này?')) return
+    const supabase = createClient()
+    const { error } = await supabase.from('site_advances').delete().eq('id', id)
+    if (!error) router.refresh()
+    else alert('Lỗi xóa:\n' + error.message)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Quyết toán tạm ứng công trình</h1>
-        <p className="text-gray-600 mb-6">Chốt tiền tạm ứng và phân bổ vào dòng tiền công trình</p>
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Quyết toán tạm ứng công trình</h1>
+            <p className="text-gray-600 mt-1">Chốt tiền tạm ứng và phân bổ vào dòng tiền công trình</p>
+          </div>
+          <button
+            onClick={() => { setAddForm(f => ({ ...f, date: new Date().toISOString().split('T')[0] })); setShowAddAdvance(true) }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            <Plus size={15} /> Ghi tạm ứng
+          </button>
+        </div>
 
         {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow mb-6 flex gap-4">
@@ -382,6 +473,7 @@ export default function AdvanceSettlementClient({
                     <th className="text-right px-4 py-2.5 font-medium">Đã ứng</th>
                     <th className="text-right px-4 py-2.5 font-medium">Trả lại</th>
                     <th className="text-right px-5 py-2.5 font-medium">Chưa hoàn</th>
+                    <th className="px-3 py-2.5 w-16" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -390,7 +482,7 @@ export default function AdvanceSettlementClient({
                     const done = remaining <= 0
                     const isSettlement = r.note?.startsWith(SETTLE_PREFIX)
                     return (
-                      <tr key={r.id} className={`hover:bg-gray-50/50 ${isSettlement ? 'bg-orange-50/30' : ''}`}>
+                      <tr key={r.id} className={`hover:bg-gray-50/50 group ${isSettlement ? 'bg-orange-50/30' : ''}`}>
                         <td className="px-5 py-3 text-gray-500 text-xs tabular-nums whitespace-nowrap">
                           {new Date(r.date + 'T00:00:00').toLocaleDateString('vi-VN')}
                         </td>
@@ -401,6 +493,30 @@ export default function AdvanceSettlementClient({
                         <td className="px-4 py-3 text-right text-green-600 tabular-nums text-xs whitespace-nowrap">{formatVND(r.returned ?? 0)}</td>
                         <td className="px-5 py-3 text-right font-bold tabular-nums whitespace-nowrap">
                           <span className={done ? 'text-green-600' : 'text-orange-600'}>{formatVND(remaining)}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => {
+                                setEditingAdvance(r)
+                                setAdvForm({
+                                  employeeId: r.employee_id ?? '',
+                                  projectId: r.project_id,
+                                  channel: r.channel,
+                                  amount: String(r.amount),
+                                  returned: String(r.returned ?? 0),
+                                  date: r.date,
+                                  note: r.note ?? '',
+                                })
+                              }}
+                              className="p-1 text-gray-300 hover:text-blue-600 rounded"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button onClick={() => handleDeleteAdvance(r.id)} className="p-1 text-gray-300 hover:text-red-500 rounded">
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -532,6 +648,143 @@ export default function AdvanceSettlementClient({
               <button onClick={() => setEditingSettlement(null)} disabled={saving}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50">Hủy</button>
               <button onClick={handleUpdateSettlement} disabled={saving}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium">
+                {saving ? '...' : 'Lưu'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Advance Modal */}
+      {showAddAdvance && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">Ghi tạm ứng công trình</h3>
+              <button onClick={() => setShowAddAdvance(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Người ứng</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={addForm.employeeId} onChange={e => setAddForm(f => ({ ...f, employeeId: e.target.value }))}>
+                    <option value="">-- Chọn giám sát viên --</option>
+                    {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Công trình</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={addForm.projectId} onChange={e => setAddForm(f => ({ ...f, projectId: e.target.value }))}>
+                    <option value="">-- Chọn công trình --</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Số tiền ứng (₫)</label>
+                  <input type="number" min="0" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right"
+                    placeholder="0" value={addForm.amount} onChange={e => setAddForm(f => ({ ...f, amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ứng từ kênh</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={addForm.channel} onChange={e => setAddForm(f => ({ ...f, channel: e.target.value }))}>
+                    {Object.entries(CH_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ngày ứng</label>
+                  <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={addForm.date} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={addForm.note} onChange={e => setAddForm(f => ({ ...f, note: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-50 px-4 py-3 flex gap-2 justify-end border-t">
+              <button onClick={() => setShowAddAdvance(false)} disabled={saving}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50">Hủy</button>
+              <button onClick={handleAddAdvance} disabled={saving}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-lg font-medium">
+                {saving ? '...' : 'Ghi tạm ứng'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Advance Modal (bảng lịch sử đầy đủ) */}
+      {editingAdvance && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">Sửa khoản tạm ứng</h3>
+              <button onClick={() => setEditingAdvance(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Người ứng</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={advForm.employeeId} onChange={e => setAdvForm(f => ({ ...f, employeeId: e.target.value }))}>
+                    <option value="">-- Chọn giám sát viên --</option>
+                    {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Công trình</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={advForm.projectId} onChange={e => setAdvForm(f => ({ ...f, projectId: e.target.value }))}>
+                    <option value="">-- Chọn công trình --</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Đã ứng (₫)</label>
+                  <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right"
+                    value={advForm.amount} onChange={e => setAdvForm(f => ({ ...f, amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Trả lại (₫)</label>
+                  <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right"
+                    value={advForm.returned} onChange={e => setAdvForm(f => ({ ...f, returned: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ngày</label>
+                  <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={advForm.date} onChange={e => setAdvForm(f => ({ ...f, date: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Kênh tiền</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={advForm.channel} onChange={e => setAdvForm(f => ({ ...f, channel: e.target.value }))}>
+                    {Object.entries(CH_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={advForm.note} onChange={e => setAdvForm(f => ({ ...f, note: e.target.value }))} />
+              </div>
+            </div>
+            <div className="bg-gray-50 px-4 py-3 flex gap-2 justify-end border-t">
+              <button onClick={() => setEditingAdvance(null)} disabled={saving}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50">Hủy</button>
+              <button onClick={handleUpdateAdvance} disabled={saving}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium">
                 {saving ? '...' : 'Lưu'}
               </button>
