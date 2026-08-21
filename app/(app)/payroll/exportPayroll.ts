@@ -188,6 +188,8 @@ export function exportPayrollBhxhToXlsx(rows: ExportRow[], month: number, year: 
   for (const { emp, entry, result } of rows) {
     const isFullSalary = (emp.salary_type ?? 'proportional') === 'full'
     if (!entry && !isFullSalary) continue
+    // Chỉ xuất người có tham gia BHXH — bỏ thử việc/thực tập/chưa đóng BHXH
+    if (result.bhxhNLD <= 0 && result.bhxhCTY <= 0) continue
 
     const adv = advanceMap?.get(emp.id) ?? { ck: 0, tm: 0 }
     const conTraCK = result.thucNhan1 - adv.ck
