@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Pencil, UserPlus, FileSpreadsheet } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, UserPlus, FileSpreadsheet, ChevronDown } from 'lucide-react'
 import { Employee, PayrollEntry, PayrollResult, calcPayroll, isActiveInMonth } from './calc'
-import { exportPayrollToXlsx } from './exportPayroll'
+import { exportPayrollToXlsx, exportPayrollBhxhToXlsx } from './exportPayroll'
 import EditPayrollModal from './EditPayrollModal'
 import AddEmployeeModal from './AddEmployeeModal'
 import { formatVND } from '@/lib/utils'
@@ -48,6 +48,7 @@ export default function PayrollClient({ employees, entries, month, year, userId,
   const router = useRouter()
   const [editTarget, setEditTarget] = useState<{ emp: Employee; entry: PayrollEntry | null } | null>(null)
   const [showAddEmp, setShowAddEmp] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const entryMap = useMemo(() => {
     const m = new Map<string, PayrollEntry>()
@@ -118,12 +119,35 @@ export default function PayrollClient({ employees, entries, month, year, userId,
           <p className="text-sm text-gray-400">Mitcon Decor &amp; Design</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => exportPayrollToXlsx(rows, month, year, advanceMap)}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-green-200 rounded-xl hover:bg-green-50 text-green-700 font-medium"
-          >
-            <FileSpreadsheet size={14} /> Xuất Excel
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-green-200 rounded-xl hover:bg-green-50 text-green-700 font-medium"
+            >
+              <FileSpreadsheet size={14} /> Xuất Excel <ChevronDown size={13} />
+            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                  <button
+                    onClick={() => { exportPayrollToXlsx(rows, month, year, advanceMap); setShowExportMenu(false) }}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50"
+                  >
+                    <p className="font-medium text-gray-800">Xuất Full</p>
+                    <p className="text-xs text-gray-400">Đầy đủ tất cả các khoản</p>
+                  </button>
+                  <button
+                    onClick={() => { exportPayrollBhxhToXlsx(rows, month, year, advanceMap); setShowExportMenu(false) }}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 border-t border-gray-100"
+                  >
+                    <p className="font-medium text-gray-800">Xuất lương BHXH</p>
+                    <p className="text-xs text-gray-400">Thực nhận 1 · TK Công ty &amp; BHXH</p>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={() => setShowAddEmp(true)}
             className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-600"

@@ -144,3 +144,110 @@ export function exportPayrollToXlsx(rows: ExportRow[], month: number, year: numb
 
   XLSX.writeFile(wb, `Bang_luong_${sheetName}.xlsx`)
 }
+
+// Xuất lương BHXH: chỉ phần liên quan Thực nhận 1 (TK Công ty + BHXH), bỏ các cột TM/PC/thưởng
+const HEADERS_BHXH = [
+  'STT', 'Mã NV', 'Họ tên', 'Chức danh', 'Phòng ban', 'Loại HĐ',
+  'Lương HĐ (đ)', 'Lương BHXH (đ)',
+  'Chuẩn công', 'Ngày công',
+  'TN ngày công (đ)', 'Tăng ca (đ)',
+  'TN trước thuế (đ)',
+  'BHXH NLĐ 10.5% (đ)', 'BHXH CTY 21.5% (đ)',
+  'Thuế TNCN (đ)',
+  'Thực nhận CK (đ)',
+  'Ứng TK CTY (đ)',
+  'Còn trả CK (đ)',
+  'Số TK', 'Ngân hàng',
+]
+
+const COL_WIDTHS_BHXH = [
+  5, 8, 25, 22, 12, 12,
+  16, 16,
+  11, 11,
+  16, 14,
+  16,
+  18, 18,
+  14,
+  16,
+  14,
+  16,
+  18, 16,
+]
+
+export function exportPayrollBhxhToXlsx(rows: ExportRow[], month: number, year: number, advanceMap?: Map<string, { ck: number; tm: number }>) {
+  const data: (string | number | null)[][] = []
+
+  data.push(['CÔNG TY TNHH THIẾT KẾ XÂY DỰNG THƯƠNG MẠI MITCON'])
+  data.push([`BẢNG LƯƠNG BHXH (TK CÔNG TY) ${MONTH_VN[month].toUpperCase()} ${year}`])
+  data.push([])
+  data.push(HEADERS_BHXH)
+
+  let stt = 0
+  let totals = { tnTruocThue: 0, bhxhNLD: 0, bhxhCTY: 0, thueNCN: 0, thucNhan1: 0, ungCK: 0, conTraCK: 0 }
+
+  for (const { emp, entry, result } of rows) {
+    const isFullSalary = (emp.salary_type ?? 'proportional') === 'full'
+    if (!entry && !isFullSalary) continue
+
+    const adv = advanceMap?.get(emp.id) ?? { ck: 0, tm: 0 }
+    const conTraCK = result.thucNhan1 - adv.ck
+
+    stt++
+    data.push([
+      stt,
+      emp.msnv ?? '',
+      emp.name,
+      emp.title ?? '',
+      emp.dept ?? '',
+      result.isIntern ? 'Thực tập sinh' : result.isProbation ? 'Thử việc' : 'Chính thức',
+      emp.base_salary,
+      emp.bhxh_base,
+      result.chuanCongAuto,
+      isFullSalary ? 'Full' : (entry?.actual_days ?? 0),
+      result.tnNgayCong,
+      result.tienTC || null,
+      result.tnTruocThue,
+      result.bhxhNLD || null,
+      result.bhxhCTY || null,
+      result.thueNCN || null,
+      result.thucNhan1,
+      adv.ck || null,
+      conTraCK,
+      emp.bank_account ?? '',
+      emp.bank_name ?? '',
+    ])
+
+    totals.tnTruocThue += result.tnTruocThue
+    totals.bhxhNLD    += result.bhxhNLD
+    totals.bhxhCTY    += result.bhxhCTY
+    totals.thueNCN    += result.thueNCN
+    totals.thucNhan1  += result.thucNhan1
+    totals.ungCK      += adv.ck
+    totals.conTraCK   += conTraCK
+  }
+
+  data.push([
+    'TỔNG CỘNG', '', '', '', '', '',
+    null, null, null, null,
+    null, null,
+    totals.tnTruocThue,
+    totals.bhxhNLD, totals.bhxhCTY,
+    totals.thueNCN,
+    totals.thucNhan1,
+    totals.ungCK || null,
+    totals.conTraCK,
+    '', '',
+  ])
+
+  data.push([])
+  data.push([`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`])
+
+  const ws = XLSX.utils.aoa_to_sheet(data)
+  ws['!cols'] = COL_WIDTHS_BHXH.map(wch => ({ wch }))
+
+  const wb = XLSX.utils.book_new()
+  const sheetName = `T${String(month).padStart(2, '0')}.${year}`
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+
+  XLSX.writeFile(wb, `Bang_luong_BHXH_${sheetName}.xlsx`)
+}
