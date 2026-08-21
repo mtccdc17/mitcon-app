@@ -60,6 +60,7 @@ export default function AdvanceSettlementClient({
   const [settleDate, setSettleDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
   const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
+  const [settledOpenFor, setSettledOpenFor] = useState<string | null>(null)
   const [editingSettlement, setEditingSettlement] = useState<SiteAdvance | null>(null)
   const [editAmount, setEditAmount] = useState('')
   const [editReturned, setEditReturned] = useState('')
@@ -369,16 +370,18 @@ export default function AdvanceSettlementClient({
                 </div>
               </div>
 
-              {/* Project Breakdown */}
-              <div className="p-4 space-y-3">
-                {emp.projSummary.map(proj => (
+              {/* Project Breakdown — chỉ hiện công trình còn dư nợ, ẩn công trình đã chốt xong */}
+              {(() => {
+                const active = emp.projSummary.filter(p => p.remaining !== 0)
+                const settled = emp.projSummary.filter(p => p.remaining === 0)
+                const renderProj = (proj: typeof emp.projSummary[number]) => (
                   <div key={proj.projId} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <p className="font-medium text-gray-900">{proj.name}</p>
                       </div>
                       <div className="text-right">
-                        <p className={`font-bold text-lg ${proj.remaining < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        <p className={`font-bold text-lg ${proj.remaining < 0 ? 'text-red-600' : proj.remaining > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                           {formatVND(proj.remaining)}
                         </p>
                       </div>
@@ -389,8 +392,28 @@ export default function AdvanceSettlementClient({
                       <div>Hoàn: <span className="font-medium text-gray-900">{formatVND(proj.totalReturned)}</span></div>
                     </div>
                   </div>
-                ))}
-              </div>
+                )
+                return (
+                  <div className="p-4 space-y-3">
+                    {active.length > 0 ? active.map(renderProj) : (
+                      <p className="text-sm text-gray-400 text-center italic py-2">Tất cả công trình đã chốt xong 🎉</p>
+                    )}
+                    {settled.length > 0 && (
+                      <div className="pt-1">
+                        <button
+                          onClick={() => setSettledOpenFor(settledOpenFor === emp.empId ? null : emp.empId)}
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                        >
+                          {settledOpenFor === emp.empId ? '▾' : '▸'} {settled.length} công trình đã chốt xong
+                        </button>
+                        {settledOpenFor === emp.empId && (
+                          <div className="mt-2 space-y-2">{settled.map(renderProj)}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Lịch sử chốt quỹ */}
               {emp.settlementHistory.length > 0 && (
