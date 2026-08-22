@@ -13,9 +13,10 @@ export interface LedgerEntry {
 }
 
 const mapCh = (ch?: string | null): 'tk_cty' | 'tk_cn' | 'tm' | null => {
-  if (ch === 'ocb' || ch === 'lp' || ch === 'mb' || ch === 'tk_cn') return 'tk_cn'
   if (ch === 'tk_cty') return 'tk_cty'
   if (ch === 'tm') return 'tm'
+  // Mọi kênh khác (tk_cn, hoặc ngân hàng con do Sếp tự thêm ở trang Chi tiêu cá nhân) → TK Cá nhân
+  if (ch) return 'tk_cn'
   return null
 }
 const noteChannel = (note?: string | null): 'tk_cty' | 'tk_cn' | 'tm' | null => {

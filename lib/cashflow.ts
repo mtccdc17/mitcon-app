@@ -148,7 +148,10 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
 
   const keepDate = (d?: string | null) => (!closing || (d != null && d >= closing)) && upTo(d)
   // OCB / LPBank / MB đều là TK cá nhân → gộp vào tk_cn cho dòng tiền
-  const mapCh = (ch?: string | null) => (ch === 'ocb' || ch === 'lp' || ch === 'mb') ? 'tk_cn' : (ch ?? '')
+  // Bất kỳ kênh nào KHÔNG phải 3 kênh gốc (tk_cty/tk_cn/tm) đều là ngân hàng con của TK Cá nhân
+  // — Sếp tự thêm ngân hàng mới ở trang Chi tiêu cá nhân, không cần sửa code ở đây nữa.
+  const CORE_CHANNELS = new Set(['tk_cty', 'tk_cn', 'tm'])
+  const mapCh = (ch?: string | null) => (ch && !CORE_CHANNELS.has(ch)) ? 'tk_cn' : (ch ?? '')
 
   const peOut: Record<string, number> = { tk_cty: 0, tk_cn: 0, tm: 0 }
   for (const e of (pExp ?? [])) {

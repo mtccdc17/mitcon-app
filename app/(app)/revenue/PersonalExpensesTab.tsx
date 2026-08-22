@@ -2,23 +2,29 @@
 
 import { useState } from 'react'
 import { formatVND, formatVNDShort } from '@/lib/utils'
-import { Plus, Trash2, Pencil } from 'lucide-react'
+import { Plus, Trash2, Pencil, Settings2, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const CATEGORY_OPTIONS = ['Sinh hoạt', 'Ăn uống', 'Di chuyển', 'Nhà ở', 'Giáo dục', 'Sức khoẻ', 'Khác']
 const CHANNEL_LABEL: Record<string, string> = {
   tk_cty: 'TK Công ty', tm: 'Tiền mặt',
-  ocb: 'OCB', lp: 'LPBank', mb: 'MB',
   tk_cn: 'TK Cá nhân', // legacy
 }
 const CHANNEL_STYLE: Record<string, string> = {
   tk_cty: 'bg-blue-100 text-blue-700',
   tm:     'bg-orange-100 text-orange-700',
-  ocb:    'bg-indigo-100 text-indigo-700',
-  lp:     'bg-teal-100 text-teal-700',
-  mb:     'bg-sky-100 text-sky-700',
   tk_cn:  'bg-purple-100 text-purple-700',
 }
+// Màu xoay vòng cho các ngân hàng con do Sếp tự thêm — không hardcode theo tên cụ thể
+const BANK_COLOR_CYCLE = [
+  { bg: 'bg-indigo-50', border: 'border-indigo-100', text: 'text-indigo-600', textDark: 'text-indigo-800', badge: 'bg-indigo-100 text-indigo-700' },
+  { bg: 'bg-teal-50',   border: 'border-teal-100',   text: 'text-teal-600',   textDark: 'text-teal-800',   badge: 'bg-teal-100 text-teal-700' },
+  { bg: 'bg-sky-50',    border: 'border-sky-100',    text: 'text-sky-600',    textDark: 'text-sky-800',    badge: 'bg-sky-100 text-sky-700' },
+  { bg: 'bg-fuchsia-50',border: 'border-fuchsia-100',text: 'text-fuchsia-600',textDark: 'text-fuchsia-800',badge: 'bg-fuchsia-100 text-fuchsia-700' },
+  { bg: 'bg-lime-50',   border: 'border-lime-100',   text: 'text-lime-600',   textDark: 'text-lime-800',   badge: 'bg-lime-100 text-lime-700' },
+]
+
+export interface BankChannel { id: string; code: string; label: string; sort_order: number }
 
 interface PersonalExpense {
   id: string
@@ -65,17 +71,22 @@ export default function PersonalExpensesTab({
   initialExpenses,
   initialLoans,
   initialDeposits = [],
+  initialBankChannels = [],
 }: {
   initialExpenses: PersonalExpense[]
   initialLoans: PersonalLoan[]
   initialDeposits?: ChannelDeposit[]
+  initialBankChannels?: BankChannel[]
 }) {
   const [expenses, setExpenses] = useState(initialExpenses)
   const [loans, setLoans] = useState(initialLoans)
   const [deposits, setDeposits] = useState(initialDeposits)
+  const [bankChannels, setBankChannels] = useState(initialBankChannels)
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [showAddLoan, setShowAddLoan] = useState(false)
   const [showAddDeposit, setShowAddDeposit] = useState(false)
+  const [showManageBanks, setShowManageBanks] = useState(false)
+  const [newBankLabel, setNewBankLabel] = useState('')
   const [depForm, setDepForm] = useState({
     date: new Date().toISOString().split('T')[0],
     description: '',
@@ -118,11 +129,46 @@ export default function PersonalExpensesTab({
 
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0)
   const sumCh = (ch: string) => expenses.filter(e => e.channel === ch).reduce((s, e) => s + e.amount, 0)
-  const expByChannel = {
-    ocb: sumCh('ocb'), lp: sumCh('lp'), mb: sumCh('mb'),
+  const expByChannel: Record<string, number> = {
     tk_cty: sumCh('tk_cty'), tm: sumCh('tm'),
   }
+  for (const b of bankChannels) expByChannel[b.code] = sumCh(b.code)
+  const chLabel: Record<string, string> = { ...CHANNEL_LABEL, ...Object.fromEntries(bankChannels.map(b => [b.code, b.label])) }
+  const chStyle: Record<string, string> = {
+    ...CHANNEL_STYLE,
+    ...Object.fromEntries(bankChannels.map((b, i) => [b.code, BANK_COLOR_CYCLE[i % BANK_COLOR_CYCLE.length].badge])),
+  }
   const totalDebt = loans.reduce((s, l) => s + Math.max(0, l.amount - l.repaid_amount), 0)
+
+  async function handleAddBankChannel() {
+    if (!newBankLabel.trim()) return
+    const code = newBankLabel.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+    if (!code) return
+    if (bankChannels.some(b => b.code === code)) { alert('Ngân hàng này đã có trong danh sách.'); return }
+    setSaving(true)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('bank_channels')
+      .insert({ code, label: newBankLabel.trim(), sort_order: bankChannels.length + 1 })
+      .select()
+      .single()
+    setSaving(false)
+    if (!error && data) {
+      setBankChannels(prev => [...prev, data as BankChannel])
+      setNewBankLabel('')
+    } else if (error) {
+      alert('Lỗi thêm ngân hàng:\n' + error.message)
+    }
+  }
+
+  async function handleDeleteBankChannel(id: string, code: string) {
+    const inUse = expenses.some(e => e.channel === code)
+    if (inUse && !confirm('Ngân hàng này đang có khoản chi gắn với nó. Xóa khỏi danh sách chọn (không xóa lịch sử chi cũ)?')) return
+    const supabase = createClient()
+    const { error } = await supabase.from('bank_channels').delete().eq('id', id)
+    if (!error) setBankChannels(prev => prev.filter(b => b.id !== id))
+    else alert('Lỗi xóa:\n' + error.message)
+  }
 
   async function handleAddExpense() {
     if (!expForm.description || !expForm.amount) return
@@ -308,23 +354,29 @@ export default function PersonalExpensesTab({
   return (
     <div className="space-y-4">
       {/* Summary cards */}
+      <div className="flex items-center justify-between">
+        <div />
+        <button
+          onClick={() => setShowManageBanks(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+        >
+          <Settings2 size={12} /> Quản lý ngân hàng
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <div className="bg-red-50 border border-red-100 rounded-xl p-3">
           <p className="text-xs text-red-600 font-medium mb-1">Tổng chi cá nhân</p>
           <p className="text-lg font-bold text-red-800 tabular-nums">{formatVNDShort(totalExp)}</p>
         </div>
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-          <p className="text-xs text-indigo-600 font-medium mb-1">OCB</p>
-          <p className="text-base font-bold text-indigo-800 tabular-nums">{formatVNDShort(expByChannel.ocb)}</p>
-        </div>
-        <div className="bg-teal-50 border border-teal-100 rounded-xl p-3">
-          <p className="text-xs text-teal-600 font-medium mb-1">LPBank</p>
-          <p className="text-base font-bold text-teal-800 tabular-nums">{formatVNDShort(expByChannel.lp)}</p>
-        </div>
-        <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
-          <p className="text-xs text-sky-600 font-medium mb-1">MB</p>
-          <p className="text-base font-bold text-sky-800 tabular-nums">{formatVNDShort(expByChannel.mb)}</p>
-        </div>
+        {bankChannels.map((b, i) => {
+          const c = BANK_COLOR_CYCLE[i % BANK_COLOR_CYCLE.length]
+          return (
+            <div key={b.id} className={`${c.bg} border ${c.border} rounded-xl p-3`}>
+              <p className={`text-xs ${c.text} font-medium mb-1`}>{b.label}</p>
+              <p className={`text-base font-bold ${c.textDark} tabular-nums`}>{formatVNDShort(expByChannel[b.code] ?? 0)}</p>
+            </div>
+          )
+        })}
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
           <p className="text-xs text-blue-600 font-medium mb-1">TK Công ty</p>
           <p className="text-base font-bold text-blue-800 tabular-nums">{formatVNDShort(expByChannel.tk_cty)}</p>
@@ -391,8 +443,8 @@ export default function PersonalExpensesTab({
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${CHANNEL_STYLE[e.channel] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {CHANNEL_LABEL[e.channel] ?? e.channel}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${chStyle[e.channel] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {chLabel[e.channel] ?? e.channel}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">
@@ -471,8 +523,8 @@ export default function PersonalExpensesTab({
                         {l.notes && <span className="ml-1.5 text-xs text-amber-700">({l.notes})</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${CHANNEL_STYLE[l.channel] ?? 'bg-amber-200 text-amber-800'}`}>
-                          {CHANNEL_LABEL[l.channel] ?? l.channel ?? '—'}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${chStyle[l.channel] ?? 'bg-amber-200 text-amber-800'}`}>
+                          {chLabel[l.channel] ?? l.channel ?? '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-amber-800 tabular-nums text-xs whitespace-nowrap">
@@ -563,8 +615,8 @@ export default function PersonalExpensesTab({
                 </span>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-gray-800">{d.description}</span>
-                  <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-full font-medium ${CHANNEL_STYLE[d.channel] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {CHANNEL_LABEL[d.channel] ?? d.channel}
+                  <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-full font-medium ${chStyle[d.channel] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {chLabel[d.channel] ?? d.channel}
                   </span>
                   {d.notes && <span className="ml-1.5 text-xs text-gray-400">· {d.notes}</span>}
                 </div>
@@ -680,9 +732,7 @@ export default function PersonalExpensesTab({
                   <label className={LBL}>Kênh rút</label>
                   <select className={INP} value={expForm.channel}
                     onChange={ev => setExpForm(f => ({ ...f, channel: ev.target.value }))}>
-                    <option value="ocb">OCB</option>
-                    <option value="lp">LPBank</option>
-                    <option value="mb">MB</option>
+                    {bankChannels.map(b => <option key={b.id} value={b.code}>{b.label}</option>)}
                     <option value="tk_cty">TK Công ty</option>
                     <option value="tm">Tiền mặt</option>
                   </select>
@@ -756,9 +806,7 @@ export default function PersonalExpensesTab({
                   <label className={LBL}>Kênh rút</label>
                   <select className={INP} value={editForm.channel}
                     onChange={ev => setEditForm(f => ({ ...f, channel: ev.target.value }))}>
-                    <option value="ocb">OCB</option>
-                    <option value="lp">LPBank</option>
-                    <option value="mb">MB</option>
+                    {bankChannels.map(b => <option key={b.id} value={b.code}>{b.label}</option>)}
                     <option value="tk_cty">TK Công ty</option>
                     <option value="tm">Tiền mặt</option>
                   </select>
@@ -940,6 +988,50 @@ export default function PersonalExpensesTab({
                 className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {saving ? 'Đang lưu...' : 'Xác nhận trả'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Quản lý ngân hàng con (TK Cá nhân) */}
+      {showManageBanks && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-900">Quản lý ngân hàng (TK Cá nhân)</h2>
+              <button onClick={() => setShowManageBanks(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="space-y-2 mb-4">
+              {bankChannels.length === 0 && (
+                <p className="text-sm text-gray-400 italic text-center py-2">Chưa có ngân hàng nào.</p>
+              )}
+              {bankChannels.map((b, i) => {
+                const c = BANK_COLOR_CYCLE[i % BANK_COLOR_CYCLE.length]
+                return (
+                  <div key={b.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${c.badge}`}>{b.label}</span>
+                    <button onClick={() => handleDeleteBankChannel(b.id, b.code)} className="p-1 text-gray-300 hover:text-red-500 rounded">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex gap-2">
+              <input
+                className={INP}
+                placeholder="Tên ngân hàng mới, VD: Vietcombank"
+                value={newBankLabel}
+                onChange={ev => setNewBankLabel(ev.target.value)}
+                onKeyDown={ev => { if (ev.key === 'Enter') handleAddBankChannel() }}
+              />
+              <button
+                onClick={handleAddBankChannel}
+                disabled={saving || !newBankLabel.trim()}
+                className="px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50 whitespace-nowrap flex items-center gap-1"
+              >
+                <Plus size={14} /> Thêm
               </button>
             </div>
           </div>

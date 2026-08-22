@@ -14,11 +14,12 @@ export default async function ChiTieuCaNhanPage() {
   const { data: profile } = await supabase.from('profiles').select('role, id').eq('id', user.id).single()
   if (!profile || profile.role !== 'ceo') redirect('/dashboard')
 
-  const [cashflow, { data: personalExpenses }, { data: personalLoans }, { data: channelDeposits }] = await Promise.all([
+  const [cashflow, { data: personalExpenses }, { data: personalLoans }, { data: channelDeposits }, { data: bankChannels }] = await Promise.all([
     computeCashflow(supabase),
     supabase.from('personal_expenses').select('*').order('date', { ascending: false }),
     supabase.from('personal_loans').select('*').order('date', { ascending: false }),
     supabase.from('channel_deposits').select('*').order('date', { ascending: false }),
+    supabase.from('bank_channels').select('*').order('sort_order'),
   ])
 
   return (
@@ -30,6 +31,7 @@ export default async function ChiTieuCaNhanPage() {
         initialExpenses={personalExpenses ?? []}
         initialLoans={personalLoans ?? []}
         initialDeposits={channelDeposits ?? []}
+        initialBankChannels={bankChannels ?? []}
       />
     </div>
   )
