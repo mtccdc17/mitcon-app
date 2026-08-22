@@ -82,6 +82,8 @@ export default function PersonalExpensesTab({
   const [loans, setLoans] = useState(initialLoans)
   const [deposits, setDeposits] = useState(initialDeposits)
   const [bankChannels, setBankChannels] = useState(initialBankChannels)
+  const [filterMonth, setFilterMonth] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [showAddLoan, setShowAddLoan] = useState(false)
   const [showAddDeposit, setShowAddDeposit] = useState(false)
@@ -126,6 +128,15 @@ export default function PersonalExpensesTab({
   const [expCategoryCustom, setExpCategoryCustom] = useState(false)
   const [editCategoryCustom, setEditCategoryCustom] = useState(false)
   const NEW_CATEGORY = '__new__'
+
+  // Bộ lọc bảng "Chi tiêu cá nhân" theo tháng + danh mục
+  const allMonthOptions = Array.from(new Set(expenses.map(e => e.date.slice(0, 7)))).sort((a, b) => b.localeCompare(a))
+  const filteredExpenses = expenses.filter(e => {
+    if (filterMonth && e.date.slice(0, 7) !== filterMonth) return false
+    if (filterCategory && e.category !== filterCategory) return false
+    return true
+  })
+  const filteredExpTotal = filteredExpenses.reduce((s, e) => s + e.amount, 0)
 
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0)
   const sumCh = (ch: string) => expenses.filter(e => e.channel === ch).reduce((s, e) => s + e.amount, 0)
@@ -412,8 +423,46 @@ export default function PersonalExpensesTab({
             Thêm khoản chi
           </button>
         </div>
+
+        {/* Filter theo tháng + danh mục */}
+        <div className="px-5 py-2.5 bg-gray-50/60 border-b border-gray-200 flex flex-wrap items-center gap-2">
+          <select
+            className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
+            value={filterMonth}
+            onChange={ev => setFilterMonth(ev.target.value)}
+          >
+            <option value="">Tất cả tháng</option>
+            {allMonthOptions.map(m => {
+              const [y, mo] = m.split('-')
+              return <option key={m} value={m}>Tháng {parseInt(mo)}/{y}</option>
+            })}
+          </select>
+          <select
+            className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
+            value={filterCategory}
+            onChange={ev => setFilterCategory(ev.target.value)}
+          >
+            <option value="">Tất cả danh mục</option>
+            {allCategoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(filterMonth || filterCategory) && (
+            <button
+              onClick={() => { setFilterMonth(''); setFilterCategory('') }}
+              className="text-xs text-gray-400 hover:text-gray-600 underline"
+            >
+              Xóa lọc
+            </button>
+          )}
+          <span className="ml-auto text-xs text-gray-500">
+            {filteredExpenses.length} khoản · Tổng:{' '}
+            <span className="font-bold text-gray-900 tabular-nums">{formatVND(filteredExpTotal)}</span>
+          </span>
+        </div>
+
         {expenses.length === 0 ? (
           <p className="px-5 py-10 text-sm text-gray-400 text-center italic">Chưa có khoản chi nào.</p>
+        ) : filteredExpenses.length === 0 ? (
+          <p className="px-5 py-10 text-sm text-gray-400 text-center italic">Không có khoản chi nào khớp bộ lọc.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -428,7 +477,7 @@ export default function PersonalExpensesTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {expenses.map(e => (
+                {filteredExpenses.map(e => (
                   <tr key={e.id} className="hover:bg-gray-50 group">
                     <td className="px-5 py-3 text-gray-500 text-xs tabular-nums whitespace-nowrap">
                       {new Date(e.date + 'T00:00:00').toLocaleDateString('vi-VN')}
