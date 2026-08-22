@@ -215,7 +215,7 @@ export default function ProjectAdvanceSection({
                 {r.returned > 0 && <span className="ml-2 text-xs text-green-600">đã trả lại {formatVNDShort(r.returned)}</span>}
               </div>
               <span className="text-sm font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatVND(r.amount)}</span>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                 <button onClick={() => { setEditing(r); setForm({ employeeId: r.employee_id ?? '', channel: r.channel, amount: String(r.amount), date: r.date, note: r.note || '' }) }}
                   className="p-1 text-gray-300 hover:text-blue-600 rounded">
                   <Pencil size={12} />

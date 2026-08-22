@@ -399,7 +399,7 @@ export default function PersonalExpensesTab({
                       {formatVND(e.amount)}
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => openEditExpense(e)}
                           className="p-1.5 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -496,7 +496,7 @@ export default function PersonalExpensesTab({
                         </span>
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           {!settled && (
                             <button
                               onClick={() => { setRepayingLoan(l); setRepayAmount(''); setRepayChannel(l.channel ?? 'tk_cn'); setRepayDate(new Date().toISOString().split('T')[0]) }}
@@ -570,7 +570,7 @@ export default function PersonalExpensesTab({
                 </div>
                 <span className="text-sm font-semibold text-green-700 tabular-nums whitespace-nowrap">+{formatVND(d.amount)}</span>
                 <button onClick={() => handleDeleteDeposit(d.id, d.description)}
-                  className="p-1 text-gray-300 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                  className="p-1 text-gray-300 hover:text-red-500 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <Trash2 size={12} />
                 </button>
               </div>

@@ -518,7 +518,7 @@ export default function AdvanceSettlementClient({
                           <span className={done ? 'text-green-600' : 'text-orange-600'}>{formatVND(remaining)}</span>
                         </td>
                         <td className="px-3 py-3">
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => {
                                 setEditingAdvance(r)
