@@ -166,8 +166,7 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
   const peOut: Record<string, number> = { tk_cty: 0, tk_cn: 0, tm: 0 }
   for (const e of (pExp ?? [])) {
     if (!keepDate(e.date)) continue
-    // OCB / LPBank / MB đều là TK cá nhân → gộp vào tk_cn cho dòng tiền
-    const ch = (e.channel === 'ocb' || e.channel === 'lp' || e.channel === 'mb') ? 'tk_cn' : e.channel
+    const ch = mapCh(e.channel)
     if (ch in peOut) peOut[ch] += e.amount ?? 0
   }
 
@@ -182,7 +181,7 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
   const advOut: Record<string, number> = { tk_cty: 0, tk_cn: 0, tm: 0 }
   for (const a of (advances ?? [])) {
     if (!keepDate(a.date)) continue
-    const ch = (a.channel === 'ocb' || a.channel === 'lp' || a.channel === 'mb') ? 'tk_cn' : a.channel
+    const ch = mapCh(a.channel)
     if (ch in advOut) advOut[ch] += (a.amount ?? 0) - (a.returned ?? 0)
   }
 
