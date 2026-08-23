@@ -105,7 +105,7 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
     if (to) entries.push({ id: `trf-in-${t.id}`, date: t.date, channel: to, direction: 'in', category: 'Chuyển đến', description: label, amount: t.amount ?? 0 })
   }
 
-  // 4) Giao dịch công trình (đã trả / trả một phần) — HĐ VAT luôn qua TK Công ty; HĐ không VAT theo note.
+  // 4) Giao dịch công trình (đã trả / trả một phần) — theo đúng kênh ghi ở note (kể cả HĐ VAT).
   // Loại giao dịch số ÂM (điều chuyển/khấu trừ chi phí giữa công trình) — không phải tiền mặt thật đổi.
   // Khoản trả nhiều đợt (payment_history) → tách 1 dòng riêng cho TỪNG đợt theo ĐÚNG ngày của đợt
   // đó, không gộp hết vào payment_date (ngày đợt GẦN NHẤT) — tránh lịch sử tháng trước "biến mất",
@@ -114,9 +114,10 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
     if (t.is_vat_allocation) continue
     if ((t.amount ?? 0) < 0) continue
     if (t.payment_status !== 'paid' && t.payment_status !== 'partial') continue
-    const isVatTx = (t.vat_amount ?? 0) > 0 || (t.tncn_amount ?? 0) > 0
-    // GS chi từ quỹ đã ứng → không phải dòng tiền công ty mới (đã tính lúc tạm ứng), kể cả khi khoản chi có VAT.
-    const ch = t.note === 'Từ quỹ ứng' ? null : (isVatTx ? 'tk_cty' : noteChannel(t.note))
+    // GS chi từ quỹ đã ứng → không phải dòng tiền công ty mới (đã tính lúc tạm ứng).
+    // Hóa đơn VAT vẫn có thể trả từ TK Cá nhân/Tiền mặt (VD: dưới 5tr vẫn xuất VAT được) → theo
+    // đúng ghi chú thực trả; không ghi chú thì mặc định TK Công ty (giữ hành vi cũ cho dữ liệu cũ).
+    const ch = t.note === 'Từ quỹ ứng' ? null : (noteChannel(t.note) ?? 'tk_cty')
     if (!ch) continue
     const desc = `${t.description}${projectName.get(t.project_id ?? '') ? ' — ' + projectName.get(t.project_id ?? '') : ''}`
     const hist = (t.payment_history as { amount?: number; date?: string }[] | null) ?? []

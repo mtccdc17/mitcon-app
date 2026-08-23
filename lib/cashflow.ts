@@ -100,25 +100,35 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
   const isNoteCty = (t: { note?: string | null }) => t.note === 'CK CTY' || t.note === 'CK công ty'
   const isNoteCn  = (t: { note?: string | null }) => t.note === 'CK CN' || t.note === 'CK cá nhân'
   const isNoteTm  = (t: { note?: string | null }) => t.note === 'TM' || t.note === 'Tiền mặt'
-  // GS chi từ quỹ đã ứng → tiền đã rời công ty lúc tạm ứng rồi (trừ qua advOut), KHÔNG được trừ TK Công ty lần nữa
-  // dù khoản chi đó có VAT hay không — trước đây chỉ loại được ở nhánh không-VAT, còn VAT vẫn bị cộng cứng vào TK Công ty.
+  // GS chi từ quỹ đã ứng → tiền đã rời công ty lúc tạm ứng rồi (trừ qua advOut), KHÔNG được trừ lần nữa
   const isFromAdvance = (t: { note?: string | null }) => t.note === 'Từ quỹ ứng'
-  const vatTxCty = vatTxC.filter(t => !isFromAdvance(t))
+  // Hóa đơn VAT vẫn có thể trả từ TK Cá nhân/Tiền mặt (VD: khoản dưới 5tr vẫn xuất VAT được) — phải
+  // theo ĐÚNG ghi chú thực trả, không mặc định cứng "VAT = TK Công ty" nữa. Không ghi chú → giữ hành
+  // vi cũ (mặc định TK Công ty) để không đổi số liệu quá khứ chưa gắn note.
+  const vatTxCty = vatTxC.filter(t => !isFromAdvance(t) && !isNoteCn(t) && !isNoteTm(t))
+  const vatTxCn  = vatTxC.filter(t => !isFromAdvance(t) && isNoteCn(t))
+  const vatTxTm  = vatTxC.filter(t => !isFromAdvance(t) && isNoteTm(t))
 
   // LƯU Ý: amount ĐÃ gồm VAT (calcVAT tách VAT từ giá gross) → tiền chi ra = amount, KHÔNG cộng vat_amount nữa.
   const outTkCty =
     vatTxCty.filter(isPaidOrPartial).reduce((s, t) => s + cashOutOf(t), 0) +
     noVatTxC.filter(t => isNoteCty(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
   const outTkCn =
+    vatTxCn.filter(isPaidOrPartial).reduce((s, t) => s + cashOutOf(t), 0) +
     noVatTxC.filter(t => isNoteCn(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
   const outTm =
+    vatTxTm.filter(isPaidOrPartial).reduce((s, t) => s + cashOutOf(t), 0) +
     noVatTxC.filter(t => isNoteTm(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
 
   const unpaidTkCty =
     vatTxCty.filter(isUnpaid).reduce((s, t) => s + unpaidPart(t, t.amount), 0) +
     noVatTxC.filter(t => isNoteCty(t) && isUnpaid(t)).reduce((s, t) => s + unpaidPart(t, t.amount), 0)
-  const unpaidTkCn = noVatTxC.filter(t => isNoteCn(t) && isUnpaid(t)).reduce((s, t) => s + unpaidPart(t, t.amount), 0)
-  const unpaidTm = noVatTxC.filter(t => isNoteTm(t) && isUnpaid(t)).reduce((s, t) => s + unpaidPart(t, t.amount), 0)
+  const unpaidTkCn =
+    vatTxCn.filter(isUnpaid).reduce((s, t) => s + unpaidPart(t, t.amount), 0) +
+    noVatTxC.filter(t => isNoteCn(t) && isUnpaid(t)).reduce((s, t) => s + unpaidPart(t, t.amount), 0)
+  const unpaidTm =
+    vatTxTm.filter(isUnpaid).reduce((s, t) => s + unpaidPart(t, t.amount), 0) +
+    noVatTxC.filter(t => isNoteTm(t) && isUnpaid(t)).reduce((s, t) => s + unpaidPart(t, t.amount), 0)
 
   // Bước 2: chi tiêu cá nhân trừ vào số dư kênh
   const { data: pExp } = await supabase.from('personal_expenses').select('channel, amount, date')
