@@ -160,8 +160,10 @@ export interface PayrollEntry {
   pc_dict: number
   pc_khac: number
   pc_khac_note?: string | null
-  ngay_nghi_phep: number
-  ngay_nghi_ghi_chu?: string | null
+  ngay_nghi_phep: number            // nghỉ CÓ phép — trừ vào phép năm
+  ngay_nghi_ghi_chu?: string | null // ghi rõ ngày nghỉ có phép — VD "15/6, 20/6"
+  ngay_nghi_khong_phep?: number             // nghỉ KHÔNG phép — KHÔNG trừ phép năm, chỉ để quản lý
+  ngay_nghi_khong_phep_ghi_chu?: string | null
   note?: string | null
   // Snapshot — trạng thái nhân viên tại thời điểm tạo entry, không bị ảnh hưởng khi thay đổi sau
   employment_type_snap?: string | null
@@ -266,14 +268,18 @@ export function isActiveInMonth(
   return true
 }
 
-// Phép năm tích lũy: 1 ngày / tháng làm việc kể từ ngày vào làm (đến hết tháng đang xét)
+// Phép năm tích lũy: 1 ngày / tháng kể từ khi CHỐT HỢP ĐỒNG CHÍNH THỨC (official_from),
+// tính đến hết tháng đang xét. VD chốt tháng 7 → tháng 9 đã có 3 ngày phép.
+// Chưa set mốc chính thức → fallback dùng ngày vào làm (start_*), giữ hành vi cũ.
 export function calcLeaveAccrued(
-  emp: Pick<Employee, 'start_month' | 'start_year'>,
+  emp: Pick<Employee, 'official_from_month' | 'official_from_year' | 'start_month' | 'start_year'>,
   month: number,
   year: number,
 ): number {
-  if (!emp.start_month || !emp.start_year) return 0
-  const months = (year - emp.start_year) * 12 + (month - emp.start_month) + 1
+  const fromMonth = emp.official_from_month ?? emp.start_month
+  const fromYear  = emp.official_from_year  ?? emp.start_year
+  if (!fromMonth || !fromYear) return 0
+  const months = (year - fromYear) * 12 + (month - fromMonth) + 1
   return Math.max(0, months)
 }
 
@@ -365,5 +371,6 @@ export const EMPTY_ENTRY = (employeeId: string, month: number, year: number): Pa
   pc_grab: 0, kpi_bonus: 0, hoa_hong: 0,
   pc_dict: 0, pc_khac: 0,   // pc_giuxe bỏ trống = dùng auto
   ngay_nghi_phep: 0, ngay_nghi_ghi_chu: '',
+  ngay_nghi_khong_phep: 0, ngay_nghi_khong_phep_ghi_chu: '',
   note: '',
 })

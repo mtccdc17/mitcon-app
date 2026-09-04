@@ -183,6 +183,8 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
       pc_khac_note:      form.pc_khac_note      ?? null,
       ngay_nghi_phep:    form.ngay_nghi_phep    ?? 0,
       ngay_nghi_ghi_chu: form.ngay_nghi_ghi_chu ?? '',
+      ngay_nghi_khong_phep:         form.ngay_nghi_khong_phep         ?? 0,
+      ngay_nghi_khong_phep_ghi_chu: form.ngay_nghi_khong_phep_ghi_chu ?? '',
       note:              form.note              ?? '',
       created_by:        userId,
       updated_at:        new Date().toISOString(),
@@ -337,10 +339,10 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
               </div>
             )}
 
-            {/* Leave days — shown for all employees */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* Ngày nghỉ — tách CÓ phép (trừ phép năm) và KHÔNG phép (chỉ để quản lý) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <NumField
-                label="Ngày nghỉ phép"
+                label="Nghỉ phép (có phép)"
                 name="ngay_nghi_phep"
                 value={form.ngay_nghi_phep ?? 0}
                 onChange={setNum}
@@ -348,7 +350,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
               />
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Ghi rõ ngày nghỉ
+                  Ghi rõ ngày nghỉ phép
                 </label>
                 <input
                   type="text"
@@ -358,13 +360,37 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              <NumField
+                label="Nghỉ không phép"
+                name="ngay_nghi_khong_phep"
+                value={form.ngay_nghi_khong_phep ?? 0}
+                onChange={setNum}
+                step="0.5"
+              />
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Ghi rõ ngày nghỉ không phép
+                </label>
+                <input
+                  type="text"
+                  value={form.ngay_nghi_khong_phep_ghi_chu ?? ''}
+                  onChange={e => setText('ngay_nghi_khong_phep_ghi_chu', e.target.value)}
+                  placeholder="VD: 12/6 (không xin phép)"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
-            {/* Phép năm còn lại */}
+            {/* Phép năm còn lại — chỉ nghỉ CÓ phép mới trừ vào đây */}
             <div className="text-[11px] text-gray-500 mt-2">
-              Phép năm: tích lũy <strong>{leaveAccrued}</strong> · đã nghỉ <strong>{leaveUsedTotal}</strong> · còn lại{' '}
+              Phép năm (từ khi chính thức): tích lũy <strong>{leaveAccrued}</strong> · đã nghỉ có phép <strong>{leaveUsedTotal}</strong> · còn lại{' '}
               <strong className={leaveRemaining < 0 ? 'text-red-600' : 'text-green-700'}>{leaveRemaining}</strong> ngày
-              {!employee.start_month && <span className="text-orange-500"> · chưa có ngày vào làm (cập nhật ở tab Nhân sự)</span>}
+              {(form.ngay_nghi_khong_phep ?? 0) > 0 && (
+                <span className="text-red-500"> · nghỉ không phép tháng này: <strong>{form.ngay_nghi_khong_phep}</strong> ngày</span>
+              )}
+              {!employee.official_from_month && !employee.start_month && (
+                <span className="text-orange-500"> · chưa có mốc chính thức / ngày vào làm (cập nhật ở tab Nhân sự)</span>
+              )}
             </div>
           </div>
 

@@ -56,6 +56,7 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
     const pcKhac = entry.pc_khac ?? 0
     const pcKhacNote = entry.pc_khac_note ?? ''
     const ngayNghiPhep = entry.ngay_nghi_phep ?? 0
+    const ngayNghiKhongPhep = entry.ngay_nghi_khong_phep ?? 0
     const note = entry.note ?? ''
     const genDate = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -178,6 +179,13 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
                   padding: '8px 12px', textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: '#d97706', marginBottom: 2 }}>Nghỉ phép</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#b45309' }}>{ngayNghiPhep}</div>
+                </div>
+              )}
+              {ngayNghiKhongPhep > 0 && (
+                <div style={{ flex: 1, background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 9,
+                  padding: '8px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: '#dc2626', marginBottom: 2 }}>Nghỉ KP</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#b91c1c' }}>{ngayNghiKhongPhep}</div>
                 </div>
               )}
             </div>
