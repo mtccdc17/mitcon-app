@@ -160,13 +160,14 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
     setForm(prev => ({ ...prev, [key]: parseFloat(value) || 0 }))
   }
 
-  // Đổi ngày nghỉ (2 loại) → tự tính lại Ngày công TT = Công chuẩn − nghỉ, khỏi phải tự trừ tay.
-  // Vẫn sửa tay được sau đó — chỉ auto lại khi Sếp đổi ngày nghỉ lần nữa.
+  // Đổi ngày nghỉ → tự tính lại Ngày công TT, khỏi phải tự trừ tay.
+  // CHỈ trừ "Ngày nghỉ" (không phép) — Phép năm hưởng NGUYÊN LƯƠNG (Điều 113 BLLĐ 2019) nên KHÔNG trừ công/lương,
+  // chỉ trừ vào quỹ phép năm (xem dòng "Phép năm" bên dưới). Vẫn sửa tay TT được; auto lại khi đổi ngày nghỉ lần nữa.
   function setLeave(patch: Partial<PayrollEntry>) {
     setForm(prev => {
       const next = { ...prev, ...patch }
-      const nghi = (next.ngay_nghi_khong_phep ?? 0) + (next.ngay_nghi_phep ?? 0)
-      next.actual_days = Math.max(0, Math.round((chuanCong - nghi) * 10) / 10)
+      const khongPhep = next.ngay_nghi_khong_phep ?? 0
+      next.actual_days = Math.max(0, Math.round((chuanCong - khongPhep) * 10) / 10)
       return next
     })
   }
@@ -320,7 +321,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                     onChange={setNum}
                     step="0.5"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">Tự tính = Công chuẩn − ngày nghỉ bên dưới. Đổi ngày nghỉ là tự cập nhật lại; vẫn sửa tay được nếu cần.</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Tự tính = Công chuẩn − Ngày nghỉ (không phép). Phép năm hưởng nguyên lương nên KHÔNG trừ ở đây. Vẫn sửa tay được nếu cần.</p>
                 </div>
               </div>
             )}
