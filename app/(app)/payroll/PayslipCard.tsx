@@ -201,8 +201,8 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
 
           {/* Thu nhập */}
           <p style={s.sectionTitle('#16a34a')}>Thu nhập</p>
-          <Row label="TN ngày công" value={result.tnNgayCong} />
-          {result.tienTC > 0 && (
+          <Row label={result.isSplitSalary ? 'TN ngày công (qua CK)' : 'TN ngày công'} value={result.tnNgayCong} />
+          {result.tienTC > 0 && !result.isSplitSalary && (
             <Row
               label={`Tiền tăng ca${overtime > 0 ? ` · ${overtime}h thường` : ''}${overtimeLe > 0 ? ` · ${overtimeLe}h CN/Lễ` : ''}${overtimeNote ? ` (${overtimeNote})` : ''}`}
               value={result.tienTC}
@@ -236,6 +236,15 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
               {(result.isProbation || result.isIntern) && (result.tnTruocThue - result.bhxhNLD - result.thueNCN) > 0 &&
                 <Row label={result.isIntern ? 'Lương thực tập' : 'Lương thử việc'}
                   value={result.tnTruocThue - result.bhxhNLD - result.thueNCN} />}
+              {result.isSplitSalary && result.luongNgoai > 0 && (
+                <Row label="Lương chi ngoài (theo ngày công)" value={result.luongNgoai} />
+              )}
+              {result.isSplitSalary && result.tienTC > 0 && (
+                <Row
+                  label={`Tiền tăng ca${overtime > 0 ? ` · ${overtime}h thường` : ''}${overtimeLe > 0 ? ` · ${overtimeLe}h CN/Lễ` : ''}${overtimeNote ? ` (${overtimeNote})` : ''}`}
+                  value={result.tienTC}
+                />
+              )}
               {result.pcGiuXe > 0 && <Row label="PC Giữ xe" value={result.pcGiuXe} />}
               {pcDiCT > 0 && <Row label="PC Đi CT" value={pcDiCT} />}
               {pcGrab > 0 && <Row label="PC Grab" value={pcGrab} />}

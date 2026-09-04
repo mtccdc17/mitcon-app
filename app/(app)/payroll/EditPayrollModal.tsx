@@ -203,6 +203,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
         salary_type_snap:     employee.salary_type,
         base_salary_snap:     effectiveBaseSalary(employee, month, year),
         bhxh_base_snap:       employee.bhxh_base,
+        salary_ck_cap_snap:   employee.salary_ck_cap ?? 0,
       }
       ;({ error } = await supabase.from('payroll_entries').insert(payload))
     }
@@ -503,13 +504,23 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
             </p>
 
             <div className="grid grid-cols-3 gap-2 mb-2">
-              <Num label="TN ngày công"  value={result.tnNgayCong} />
+              <Num label={result.isSplitSalary ? 'TN ngày công (qua CK)' : 'TN ngày công'} value={result.tnNgayCong} />
               <Num
                 label={result.tienTCLe > 0 ? `Tiền tăng ca (${formatVND(result.tienTCThuong)} thường + ${formatVND(result.tienTCLe)} CN/Lễ)` : 'Tiền tăng ca'}
                 value={result.tienTC}
               />
               <Num label="TN trước thuế" value={result.tnTruocThue} />
             </div>
+
+            {result.isSplitSalary && (
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <Num label="Lương chi ngoài → TN2" value={result.luongNgoai} color="orange" />
+                <div className="col-span-2 flex items-center text-[11px] text-gray-500 px-1 leading-snug">
+                  Lương HĐ tách: {formatVND(result.tnNgayCong)} qua CK (đã trừ ngày công) + {formatVND(result.luongNgoai)} chi ngoài.
+                  Tăng ca {formatVND(result.tienTC)} cũng dồn vào Thực nhận 2.
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-2 mb-2">
               <Num label="BHXH NLĐ (10.5%)" value={result.bhxhNLD} />

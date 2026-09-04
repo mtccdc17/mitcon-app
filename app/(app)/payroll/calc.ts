@@ -72,6 +72,9 @@ export interface Employee {
   employment_type: string
   base_salary: number
   bhxh_base: number
+  // Mức lương tối đa đi qua CK lương (Thực nhận 1, có tính thuế). 0/null = không tách.
+  // Phần lương HĐ vượt mức này được đẩy sang Thực nhận 2 (chi ngoài), vẫn trừ theo ngày công.
+  salary_ck_cap?: number | null
   chuancong: number
   dependents: number
   salary_type: string   // 'proportional' | 'full'
@@ -170,6 +173,7 @@ export interface PayrollEntry {
   salary_type_snap?:     string | null
   base_salary_snap?:     number | null
   bhxh_base_snap?:       number | null
+  salary_ck_cap_snap?:   number | null
 }
 
 export interface PayrollResult {
@@ -179,6 +183,8 @@ export interface PayrollResult {
   tienTCThuong: number   // Tiền tăng ca ngày thường (hệ số 1)
   tienTCLe: number       // Tiền tăng ca CN/ngày lễ (hệ số 1.5)
   tnTruocThue: number
+  luongNgoai: number     // Phần lương HĐ vượt mức CK — chi ngoài qua Thực nhận (2), đã trừ theo ngày công
+  isSplitSalary: boolean // Tháng này lương có bị tách CK / chi ngoài không
   giamTruTotal: number
   bhxhNLD: number
   thueNCN: number
@@ -326,17 +332,28 @@ export function calcPayroll(
   const autoGiuXe = hasGiuXe ? Math.round(calcGiuXeCong(month, year) * 10_000) : 0
   const pcGiuXe = entry.pc_giuxe != null ? entry.pc_giuxe : autoGiuXe
 
-  const tnNgayCong = isFullSalary
-    ? effectiveBase
-    : (chuancong > 0 ? Math.round(effectiveBase * days / chuancong) : 0)
+  // Tách lương: phần đi qua CK lương (tính thuế) khóa ở mức salary_ck_cap, phần dư → chi ngoài (TN2).
+  // Cả 2 phần đều trừ theo ngày công. Tăng ca tính trên TOÀN BỘ lương nhưng cũng dồn vào TN2.
+  const ckCap = entry.salary_ck_cap_snap ?? emp.salary_ck_cap ?? 0
+  const isSplitSalary = ckCap > 0 && ckCap < effectiveBase
+  const baseCK    = isSplitSalary ? ckCap : effectiveBase
+  const baseNgoai = isSplitSalary ? effectiveBase - ckCap : 0
 
-  // Tăng ca ngày thường hệ số 1 (trả đúng bằng lương giờ thường), CN/ngày lễ hệ số 1.5
+  const prorate = (amt: number) => isFullSalary
+    ? amt
+    : (chuancong > 0 ? Math.round(amt * days / chuancong) : 0)
+
+  const tnNgayCong = prorate(baseCK)
+  const luongNgoai = prorate(baseNgoai)
+
+  // Tăng ca ngày thường hệ số 1 (trả đúng bằng lương giờ thường), CN/ngày lễ hệ số 1.5 — luôn theo lương đầy đủ
   const hourlyRate = (!isFullSalary && chuancong > 0) ? effectiveBase / chuancong / 8 : 0
   const tienTCThuong = Math.round(hourlyRate * overtime * 1)
   const tienTCLe     = Math.round(hourlyRate * overtimeLe * 1.5)
   const tienTC = tienTCThuong + tienTCLe
 
-  const tnTruocThue = tnNgayCong + tienTC
+  // Khi tách lương: tăng ca không tính thuế, dồn vào TN2. Khi không tách: giữ như cũ.
+  const tnTruocThue = tnNgayCong + (isSplitSalary ? 0 : tienTC)
 
   const bhxhNLD = isOfficial ? Math.round(bhxhBase * 0.105) : 0
 
@@ -347,6 +364,7 @@ export function calcPayroll(
 
   let thucNhan1 = tnTruocThue - bhxhNLD - thueNCN
   let thucNhan2 = pcGiuXe + pcDiCT + pcGrab + kpi + hoaHong + pcKhac
+    + luongNgoai + (isSplitSalary ? tienTC : 0)
   // Thử việc & Thực tập sinh & Chính thức nhưng CHƯA tới mốc đóng BHXH: toàn bộ lương dồn vào
   // Thực nhận (2) — chi tiền mặt/CKCN, không qua CK lương — CEO chốt 2026-08-05.
   if (isProbation || isIntern || !bhxhStarted) {
@@ -359,6 +377,7 @@ export function calcPayroll(
 
   return {
     chuanCongAuto, tnNgayCong, tienTC, tienTCThuong, tienTCLe, tnTruocThue,
+    luongNgoai, isSplitSalary,
     giamTruTotal, bhxhNLD, thueNCN,
     thucNhan1, thucNhan2, pcGiuXe, autoGiuXe, tongThucNhan,
     bhxhCTY, isProbation, isIntern, bhxhStarted, probationFactor,

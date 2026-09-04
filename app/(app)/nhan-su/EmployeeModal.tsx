@@ -18,6 +18,7 @@ export interface EmployeeRow {
   salary_type: string
   base_salary: number
   bhxh_base: number
+  salary_ck_cap?: number | null
   dependents: number
   hoa_hong_rate: number
   bank_account?: string | null
@@ -64,6 +65,7 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
     salary_type:     employee?.salary_type     ?? 'proportional',
     base_salary:     employee ? String(employee.base_salary)  : '',
     bhxh_base:       employee ? String(employee.bhxh_base)    : '',
+    salary_ck_cap:   employee?.salary_ck_cap ? String(employee.salary_ck_cap) : '',
     dependents:      employee ? String(employee.dependents)   : '0',
     hoa_hong_rate:   employee ? String(employee.hoa_hong_rate): '0',
     bank_account:    employee?.bank_account ?? '',
@@ -96,6 +98,7 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
       salary_type:     form.salary_type,
       base_salary:     parseInt(form.base_salary)     || 0,
       bhxh_base:       parseInt(form.bhxh_base)       || 0,
+      salary_ck_cap:   parseInt(form.salary_ck_cap)  || 0,
       dependents:      parseInt(form.dependents)      || 0,
       hoa_hong_rate:   parseFloat(form.hoa_hong_rate.replace(',', '.')) || 0,
       bank_account:    form.bank_account.trim() || null,
@@ -301,6 +304,18 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
               <input className={`${inp} text-right`} type="number" min="0"
                 value={form.bhxh_base} onChange={e => set('bhxh_base', e.target.value)} placeholder="0" />
             </div>
+          </div>
+
+          {/* Tách lương qua CK */}
+          <div>
+            <label className={lbl}>Lương qua CK tối đa (đ) — để trống nếu không tách</label>
+            <input className={`${inp} text-right`} type="number" min="0"
+              value={form.salary_ck_cap} onChange={e => set('salary_ck_cap', e.target.value)} placeholder="0" />
+            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+              Chỉ đưa tối đa mức này qua CK lương (Thực nhận 1, có tính thuế). Phần lương HĐ vượt mức này
+              được đẩy sang <strong>Thực nhận 2 (chi ngoài)</strong>, vẫn bị trừ theo ngày công. Tăng ca tính
+              trên lương HĐ đầy đủ nhưng cũng nằm ở Thực nhận 2.
+            </p>
           </div>
 
           {/* TNCN + Hoa hong */}
