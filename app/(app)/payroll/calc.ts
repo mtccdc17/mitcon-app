@@ -72,8 +72,9 @@ export interface Employee {
   employment_type: string
   base_salary: number
   bhxh_base: number
-  // Mức lương tối đa đi qua CK lương (Thực nhận 1, có tính thuế). 0/null = không tách.
-  // Phần lương HĐ vượt mức này được đẩy sang Thực nhận 2 (chi ngoài), vẫn trừ theo ngày công.
+  // Lương chi ngoài: khoản CỘNG THÊM ngoài Lương HĐ, chi qua Thực nhận 2, vẫn trừ theo ngày công.
+  // Lương HĐ vẫn đi trọn qua CK lương (tính thuế) như cũ. 0/null = không có chi ngoài.
+  // (Cột DB tên cũ là salary_ck_cap — đổi ý nghĩa từ "mức trần" sang "khoản cộng thêm".)
   salary_ck_cap?: number | null
   chuancong: number
   dependents: number
@@ -332,22 +333,21 @@ export function calcPayroll(
   const autoGiuXe = hasGiuXe ? Math.round(calcGiuXeCong(month, year) * 10_000) : 0
   const pcGiuXe = entry.pc_giuxe != null ? entry.pc_giuxe : autoGiuXe
 
-  // Tách lương: phần đi qua CK lương (tính thuế) khóa ở mức salary_ck_cap, phần dư → chi ngoài (TN2).
-  // Cả 2 phần đều trừ theo ngày công. Tăng ca tính trên TOÀN BỘ lương nhưng cũng dồn vào TN2.
-  const ckCap = entry.salary_ck_cap_snap ?? emp.salary_ck_cap ?? 0
-  const isSplitSalary = ckCap > 0 && ckCap < effectiveBase
-  const baseCK    = isSplitSalary ? ckCap : effectiveBase
-  const baseNgoai = isSplitSalary ? effectiveBase - ckCap : 0
+  // Lương chi ngoài (salary_ck_cap): khoản CỘNG THÊM ngoài Lương HĐ, chi qua Thực nhận 2, vẫn trừ theo ngày công.
+  // Lương HĐ vẫn đi trọn qua CK lương (tính thuế). Khi có chi ngoài → tăng ca dồn vào TN2, không tính thuế.
+  const extraNgoai = entry.salary_ck_cap_snap ?? emp.salary_ck_cap ?? 0
+  const isSplitSalary = extraNgoai > 0
 
   const prorate = (amt: number) => isFullSalary
     ? amt
     : (chuancong > 0 ? Math.round(amt * days / chuancong) : 0)
 
-  const tnNgayCong = prorate(baseCK)
-  const luongNgoai = prorate(baseNgoai)
+  const tnNgayCong = prorate(effectiveBase)
+  const luongNgoai = isSplitSalary ? prorate(extraNgoai) : 0
 
-  // Tăng ca ngày thường hệ số 1 (trả đúng bằng lương giờ thường), CN/ngày lễ hệ số 1.5 — luôn theo lương đầy đủ
-  const hourlyRate = (!isFullSalary && chuancong > 0) ? effectiveBase / chuancong / 8 : 0
+  // Tăng ca: đơn giá giờ theo TỔNG lương (Lương HĐ + chi ngoài). Ngày thường ×1, CN/lễ ×1.5.
+  const otBase = effectiveBase + (isSplitSalary ? extraNgoai : 0)
+  const hourlyRate = (!isFullSalary && chuancong > 0) ? otBase / chuancong / 8 : 0
   const tienTCThuong = Math.round(hourlyRate * overtime * 1)
   const tienTCLe     = Math.round(hourlyRate * overtimeLe * 1.5)
   const tienTC = tienTCThuong + tienTCLe

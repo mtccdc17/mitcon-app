@@ -516,8 +516,8 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
               <div className="grid grid-cols-3 gap-2 mb-2">
                 <Num label="Lương chi ngoài → TN2" value={result.luongNgoai} color="orange" />
                 <div className="col-span-2 flex items-center text-[11px] text-gray-500 px-1 leading-snug">
-                  Lương HĐ tách: {formatVND(result.tnNgayCong)} qua CK (đã trừ ngày công) + {formatVND(result.luongNgoai)} chi ngoài.
-                  Tăng ca {formatVND(result.tienTC)} cũng dồn vào Thực nhận 2.
+                  {formatVND(result.tnNgayCong)} qua CK lương (đã trừ ngày công) + {formatVND(result.luongNgoai)} chi ngoài
+                  + tăng ca {formatVND(result.tienTC)} — tất cả phần chi ngoài & tăng ca nằm ở Thực nhận 2.
                 </div>
               </div>
             )}

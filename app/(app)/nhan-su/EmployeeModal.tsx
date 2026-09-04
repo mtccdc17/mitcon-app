@@ -306,27 +306,24 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
             </div>
           </div>
 
-          {/* Tách lương qua CK */}
+          {/* Lương chi ngoài — cộng thêm vào Thực nhận 2 */}
           <div>
-            <label className={lbl}>Lương qua CK tối đa (đ) — để trống nếu không tách</label>
+            <label className={lbl}>Lương chi ngoài — cộng thêm vào Thực nhận 2 (đ)</label>
             <input className={`${inp} text-right`} type="number" min="0"
               value={form.salary_ck_cap} onChange={e => set('salary_ck_cap', e.target.value)} placeholder="0" />
             <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-              GIỮ NGUYÊN <strong>Lương HĐ</strong> = lương thật. Ô này là <strong>mức trần</strong> được đưa qua CK lương
-              (Thực nhận 1, có tính thuế). App tự lấy <strong>Lương HĐ − mức trần</strong> làm phần
-              <strong> chi ngoài (Thực nhận 2)</strong>, vẫn trừ theo ngày công. Tăng ca tính trên Lương HĐ đầy đủ nhưng cũng nằm ở TN2.
+              <strong>Lương HĐ</strong> giữ nguyên, đi trọn qua CK lương (Thực nhận 1, có tính thuế/BHXH). Ô này là khoản
+              <strong> CỘNG THÊM</strong> chi ngoài qua <strong>Thực nhận 2</strong>, vẫn bị trừ theo ngày công.
+              Tăng ca tính trên tổng (Lương HĐ + chi ngoài) và cũng nằm ở Thực nhận 2. Để trống nếu không có.
             </p>
             {(() => {
-              const base = parseInt(form.base_salary) || 0
-              const cap  = parseInt(form.salary_ck_cap) || 0
-              if (cap <= 0) return null
-              if (cap >= base) return (
-                <p className="text-[11px] text-orange-600 mt-1">→ Mức trần ≥ Lương HĐ nên KHÔNG tách (tính lương như bình thường).</p>
-              )
+              const base  = parseInt(form.base_salary) || 0
+              const extra = parseInt(form.salary_ck_cap) || 0
+              if (extra <= 0) return null
               const f = (n: number) => n.toLocaleString('vi-VN')
               return (
                 <p className="text-[11px] text-green-700 mt-1">
-                  → Qua CK: <strong>{f(cap)}đ</strong> · Chi ngoài (TN2): <strong>{f(base - cap)}đ</strong> · Tổng lương HĐ: <strong>{f(base)}đ</strong>
+                  → Qua CK lương: <strong>{f(base)}đ</strong> · Chi ngoài (TN2): <strong>{f(extra)}đ</strong> · Tổng: <strong>{f(base + extra)}đ</strong>
                 </p>
               )
             })()}
