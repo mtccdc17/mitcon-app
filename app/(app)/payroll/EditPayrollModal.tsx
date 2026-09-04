@@ -371,6 +371,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   month={month}
                   year={year}
                   value={form.ngay_nghi_khong_phep_ghi_chu ?? ''}
+                  currentCount={form.ngay_nghi_khong_phep ?? 0}
                   onChange={(dates, count) => setLeave({ ngay_nghi_khong_phep_ghi_chu: dates, ngay_nghi_khong_phep: count })}
                   accent="red"
                 />
@@ -388,6 +389,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   month={month}
                   year={year}
                   value={form.ngay_nghi_ghi_chu ?? ''}
+                  currentCount={form.ngay_nghi_phep ?? 0}
                   onChange={(dates, count) => setLeave({ ngay_nghi_ghi_chu: dates, ngay_nghi_phep: count })}
                   accent="amber"
                 />

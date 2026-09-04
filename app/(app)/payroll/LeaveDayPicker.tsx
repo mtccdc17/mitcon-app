@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, X } from 'lucide-react'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   month: number            // 1-12 — tháng của bảng lương đang sửa
   year: number
   value: string            // đã lưu: "5/8, 6/8" (day/month)
+  currentCount: number     // số ngày đang lưu (ô bên trái) — để đối chiếu, tự sửa nếu lệch
   onChange: (dates: string, count: number) => void
   accent?: 'amber' | 'red'
 }
@@ -26,7 +27,7 @@ function parseDays(value: string, month: number): number[] {
   return [...out].sort((a, b) => a - b)
 }
 
-export default function LeaveDayPicker({ label, month, year, value, onChange, accent = 'amber' }: Props) {
+export default function LeaveDayPicker({ label, month, year, value, currentCount, onChange, accent = 'amber' }: Props) {
   const [open, setOpen] = useState(false)
   const days = useMemo(() => parseDays(value, month), [value, month])
   const daySet = new Set(days)
@@ -39,6 +40,15 @@ export default function LeaveDayPicker({ label, month, year, value, onChange, ac
   const isSaturday = (d: number) => new Date(year, month - 1, d).getDay() === 6
   const dayWeight = (d: number) => (isSaturday(d) ? 0.5 : 1)
   const countDays = (arr: number[]) => arr.reduce((s, d) => s + dayWeight(d), 0)
+
+  // Tự đối chiếu: dữ liệu cũ (chọn trước khi có luật "Thứ 7 = 0.5") có thể đang lưu số sai lệch
+  // với ngày đã chọn trên lịch — mở lại là tự sửa cho khớp, khỏi cần bấm lại từng ngày.
+  useEffect(() => {
+    if (days.length === 0) return
+    const correct = countDays(days)
+    if (correct !== currentCount) onChange(value, correct)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, month, year])
 
   const on = accent === 'red'
   const chipCls = on
