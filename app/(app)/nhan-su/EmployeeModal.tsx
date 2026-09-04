@@ -312,10 +312,24 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
             <input className={`${inp} text-right`} type="number" min="0"
               value={form.salary_ck_cap} onChange={e => set('salary_ck_cap', e.target.value)} placeholder="0" />
             <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-              Chỉ đưa tối đa mức này qua CK lương (Thực nhận 1, có tính thuế). Phần lương HĐ vượt mức này
-              được đẩy sang <strong>Thực nhận 2 (chi ngoài)</strong>, vẫn bị trừ theo ngày công. Tăng ca tính
-              trên lương HĐ đầy đủ nhưng cũng nằm ở Thực nhận 2.
+              GIỮ NGUYÊN <strong>Lương HĐ</strong> = lương thật. Ô này là <strong>mức trần</strong> được đưa qua CK lương
+              (Thực nhận 1, có tính thuế). App tự lấy <strong>Lương HĐ − mức trần</strong> làm phần
+              <strong> chi ngoài (Thực nhận 2)</strong>, vẫn trừ theo ngày công. Tăng ca tính trên Lương HĐ đầy đủ nhưng cũng nằm ở TN2.
             </p>
+            {(() => {
+              const base = parseInt(form.base_salary) || 0
+              const cap  = parseInt(form.salary_ck_cap) || 0
+              if (cap <= 0) return null
+              if (cap >= base) return (
+                <p className="text-[11px] text-orange-600 mt-1">→ Mức trần ≥ Lương HĐ nên KHÔNG tách (tính lương như bình thường).</p>
+              )
+              const f = (n: number) => n.toLocaleString('vi-VN')
+              return (
+                <p className="text-[11px] text-green-700 mt-1">
+                  → Qua CK: <strong>{f(cap)}đ</strong> · Chi ngoài (TN2): <strong>{f(base - cap)}đ</strong> · Tổng lương HĐ: <strong>{f(base)}đ</strong>
+                </p>
+              )
+            })()}
           </div>
 
           {/* TNCN + Hoa hong */}
