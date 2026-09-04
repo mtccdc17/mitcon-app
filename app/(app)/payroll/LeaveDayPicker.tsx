@@ -35,6 +35,11 @@ export default function LeaveDayPicker({ label, month, year, value, onChange, ac
   // JS: 0=CN..6=T7 -> lệch để tuần bắt đầu từ T2
   const firstDow = (new Date(year, month - 1, 1).getDay() + 6) % 7
 
+  // Thứ 7 chỉ làm nửa buổi → nghỉ thứ 7 chỉ trừ 0.5 ngày công. Ngày khác = 1.
+  const isSaturday = (d: number) => new Date(year, month - 1, d).getDay() === 6
+  const dayWeight = (d: number) => (isSaturday(d) ? 0.5 : 1)
+  const countDays = (arr: number[]) => arr.reduce((s, d) => s + dayWeight(d), 0)
+
   const on = accent === 'red'
   const chipCls = on
     ? 'bg-red-500 text-white border-red-500'
@@ -45,7 +50,7 @@ export default function LeaveDayPicker({ label, month, year, value, onChange, ac
     const next = new Set(daySet)
     if (next.has(d)) next.delete(d); else next.add(d)
     const sorted = [...next].sort((a, b) => a - b)
-    onChange(sorted.map(x => `${x}/${month}`).join(', '), sorted.length)
+    onChange(sorted.map(x => `${x}/${month}`).join(', '), countDays(sorted))
   }
 
   function clearAll() {
@@ -62,7 +67,7 @@ export default function LeaveDayPicker({ label, month, year, value, onChange, ac
       >
         <CalendarDays size={14} className="text-gray-400 shrink-0" />
         <span className={days.length ? 'text-gray-800' : 'text-gray-400'}>
-          {days.length ? `${days.map(d => `${d}/${month}`).join(', ')} · ${days.length} ngày` : `Chọn ngày trong ${MONTHLABEL(month)}`}
+          {days.length ? `${days.map(d => `${d}/${month}${isSaturday(d) ? ' (T7 ½)' : ''}`).join(', ')} · ${countDays(days)} ngày` : `Chọn ngày trong ${MONTHLABEL(month)}`}
         </span>
       </button>
 
@@ -87,24 +92,27 @@ export default function LeaveDayPicker({ label, month, year, value, onChange, ac
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const d = i + 1
               const isSun = (firstDow + i) % 7 === 6
+              const isSat = isSaturday(d)
               const sel = daySet.has(d)
               return (
                 <button
                   key={d}
                   type="button"
                   onClick={() => toggle(d)}
-                  className={`h-7 rounded text-xs tabular-nums border transition-colors ${
+                  title={isSat ? 'Thứ 7 — chỉ tính 0.5 ngày công' : undefined}
+                  className={`h-7 rounded text-xs tabular-nums border transition-colors relative ${
                     sel ? chipCls
                     : isSun ? 'border-transparent text-red-400 hover:bg-gray-100'
+                    : isSat ? 'border-transparent text-amber-600 hover:bg-gray-100'
                     : 'border-transparent text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  {d}
+                  {d}{isSat && <sup className="text-[8px] ml-0.5">½</sup>}
                 </button>
               )
             })}
           </div>
-          <p className="text-[10px] text-gray-400 mt-2">Bấm ngày để chọn/bỏ. Nửa ngày: sửa số ở ô bên trái.</p>
+          <p className="text-[10px] text-gray-400 mt-2">Bấm ngày để chọn/bỏ. <span className="text-amber-600">Thứ 7 (½)</span> chỉ tính 0.5 ngày công. Nửa ngày lẻ khác: sửa số ở ô bên trái.</p>
         </div>
       )}
     </div>
