@@ -340,37 +340,18 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
               </div>
             )}
 
-            {/* Ngày nghỉ — chọn trực tiếp trên lịch. CÓ phép trừ phép năm, KHÔNG phép chỉ để quản lý. */}
+            {/* Ngày nghỉ — chọn trực tiếp trên lịch. "Ngày nghỉ" KHÔNG trừ phép năm; "Nghỉ phép năm" thì có. */}
             <div className="space-y-2.5">
               <div className="grid grid-cols-[7rem_1fr] gap-3 items-start">
                 <NumField
-                  label="Nghỉ phép (có phép)"
-                  name="ngay_nghi_phep"
-                  value={form.ngay_nghi_phep ?? 0}
-                  onChange={setNum}
-                  step="0.5"
-                />
-                <LeaveDayPicker
-                  label="Chọn ngày nghỉ phép trên lịch"
-                  month={month}
-                  year={year}
-                  value={form.ngay_nghi_ghi_chu ?? ''}
-                  onChange={(dates, count) => setForm(prev => ({
-                    ...prev, ngay_nghi_ghi_chu: dates, ngay_nghi_phep: count,
-                  }))}
-                  accent="amber"
-                />
-              </div>
-              <div className="grid grid-cols-[7rem_1fr] gap-3 items-start">
-                <NumField
-                  label="Nghỉ không phép"
+                  label="Ngày nghỉ (không trừ phép năm)"
                   name="ngay_nghi_khong_phep"
                   value={form.ngay_nghi_khong_phep ?? 0}
                   onChange={setNum}
                   step="0.5"
                 />
                 <LeaveDayPicker
-                  label="Chọn ngày nghỉ không phép trên lịch"
+                  label="Chọn ngày nghỉ trên lịch"
                   month={month}
                   year={year}
                   value={form.ngay_nghi_khong_phep_ghi_chu ?? ''}
@@ -380,14 +361,33 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   accent="red"
                 />
               </div>
+              <div className="grid grid-cols-[7rem_1fr] gap-3 items-start">
+                <NumField
+                  label="Ngày nghỉ phép năm"
+                  name="ngay_nghi_phep"
+                  value={form.ngay_nghi_phep ?? 0}
+                  onChange={setNum}
+                  step="0.5"
+                />
+                <LeaveDayPicker
+                  label="Chọn ngày nghỉ phép năm trên lịch"
+                  month={month}
+                  year={year}
+                  value={form.ngay_nghi_ghi_chu ?? ''}
+                  onChange={(dates, count) => setForm(prev => ({
+                    ...prev, ngay_nghi_ghi_chu: dates, ngay_nghi_phep: count,
+                  }))}
+                  accent="amber"
+                />
+              </div>
             </div>
 
             {/* Phép năm còn lại — chỉ nghỉ CÓ phép mới trừ vào đây */}
             <div className="text-[11px] text-gray-500 mt-2">
-              Phép năm (từ khi chính thức): tích lũy <strong>{leaveAccrued}</strong> · đã nghỉ có phép <strong>{leaveUsedTotal}</strong> · còn lại{' '}
+              Phép năm (từ khi chính thức): tích lũy <strong>{leaveAccrued}</strong> · đã nghỉ phép năm <strong>{leaveUsedTotal}</strong> · còn lại{' '}
               <strong className={leaveRemaining < 0 ? 'text-red-600' : 'text-green-700'}>{leaveRemaining}</strong> ngày
               {(form.ngay_nghi_khong_phep ?? 0) > 0 && (
-                <span className="text-red-500"> · nghỉ không phép tháng này: <strong>{form.ngay_nghi_khong_phep}</strong> ngày</span>
+                <span className="text-red-500"> · ngày nghỉ (không trừ phép năm) tháng này: <strong>{form.ngay_nghi_khong_phep}</strong> ngày</span>
               )}
               {!employee.official_from_month && !employee.start_month && (
                 <span className="text-orange-500"> · chưa có mốc chính thức / ngày vào làm (cập nhật ở tab Nhân sự)</span>
