@@ -344,7 +344,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
             <div className="space-y-2.5">
               <div className="grid grid-cols-[7rem_1fr] gap-3 items-start">
                 <NumField
-                  label="Ngày nghỉ (không trừ phép năm)"
+                  label="Ngày nghỉ"
                   name="ngay_nghi_khong_phep"
                   value={form.ngay_nghi_khong_phep ?? 0}
                   onChange={setNum}
