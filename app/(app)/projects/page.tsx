@@ -6,8 +6,13 @@ import { UserRole } from '@/lib/types'
 import { formatVND } from '@/lib/utils'
 import { Plus, Archive, ChevronRight } from 'lucide-react'
 import CommissionTickCell from './CommissionTickCell'
+import ProjectsFilter, { ProjectView } from './ProjectsFilter'
 
-export default async function ProjectsPage() {
+interface PageProps {
+  searchParams?: Promise<{ view?: string }>
+}
+
+export default async function ProjectsPage({ searchParams }: PageProps) {
   const user = await getUser()
   if (!user) redirect('/login')
 
@@ -19,25 +24,36 @@ export default async function ProjectsPage() {
   const canSeeFinance = role === 'ceo' || role === 'ketoan' || role === 'thicong'
   const isCeo = role === 'ceo'
 
+  const sp = searchParams ? await searchParams : {}
+  const view: ProjectView = sp.view === 'archived' || sp.view === 'all' ? sp.view : 'active'
+  // Trạng thái được nạp theo bộ lọc đang chọn
+  const statusFilter =
+    view === 'archived' ? ['archived']
+    : view === 'all' ? ['active', 'completed', 'archived']
+    : ['active', 'completed']
+
   const supabase = await createClient()
-  const [{ data: activeAndCompleted }, { data: archived }] = await Promise.all([
-    // "completed" (Đã hoàn thành) vẫn hiện ở đây — công trình xong việc vẫn cần thêm/sửa khoản chi phát sinh sau đó.
-    // Chỉ "archived" (đã bấm Lưu trữ) mới tách sang trang riêng /projects/archived.
-    supabase.from('projects').select('*').in('status', ['active', 'completed']).order('created_at', { ascending: false }),
+  const [{ data: rows }, { data: archived }, { data: allProjectsList }] = await Promise.all([
+    // "completed" (Đã hoàn thành) vẫn hiện ở view mặc định — công trình xong việc vẫn cần thêm/sửa khoản chi phát sinh sau đó.
+    // "archived" (đã bấm Lưu trữ) chỉ hiện khi chọn bộ lọc "Đã lưu trữ" hoặc "Tất cả công trình".
+    supabase.from('projects').select('*').in('status', statusFilter).order('created_at', { ascending: false }),
     supabase.from('projects').select('id').eq('status', 'archived'),
+    supabase.from('projects').select('id, name, status').order('created_at', { ascending: false }),
   ])
 
-  const projects = (activeAndCompleted ?? []).sort((a, b) => {
-    if (a.status !== b.status) return a.status === 'active' ? -1 : 1
+  const statusRank = (s: string) => (s === 'active' ? 0 : s === 'completed' ? 1 : 2)
+  const projects = (rows ?? []).sort((a, b) => {
+    if (a.status !== b.status) return statusRank(a.status) - statusRank(b.status)
     return (b.created_at ?? '').localeCompare(a.created_at ?? '')
   })
   const completedCount = projects.filter(p => p.status === 'completed').length
+  const archivedShownCount = projects.filter(p => p.status === 'archived').length
 
   const projectIds = (projects ?? []).map((p: { id: string }) => p.id)
 
   // Per-project financials
   type FinMap = Map<string, { totalRevenue: number; totalProfit: number; profitPct: string }>
-  let finMap: FinMap = new Map()
+  const finMap: FinMap = new Map()
 
   if (canSeeFinance && projectIds.length > 0) {
     const [{ data: contracts }, { data: transactions }] = await Promise.all([
@@ -96,12 +112,19 @@ export default async function ProjectsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Công trình</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {projects.length - completedCount} đang hoạt động
-            {completedCount > 0 && ` · ${completedCount} đã hoàn thành`}
-            {(archived?.length ?? 0) > 0 && ` · ${archived?.length} đã lưu trữ`}
+            {view === 'archived' ? (
+              `${archivedShownCount} đã lưu trữ`
+            ) : (
+              <>
+                {projects.length - completedCount - archivedShownCount} đang hoạt động
+                {completedCount > 0 && ` · ${completedCount} đã hoàn thành`}
+                {(archived?.length ?? 0) > 0 && ` · ${archived?.length} đã lưu trữ`}
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ProjectsFilter view={view} allProjects={allProjectsList ?? []} />
           <Link
             href="/projects/archived"
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
@@ -124,8 +147,10 @@ export default async function ProjectsPage() {
       {!projects?.length ? (
         <div className="bg-white rounded-xl border border-gray-200 text-center py-16 text-sm text-gray-400">
           <Building2Icon />
-          <p className="mt-3">Chưa có công trình nào đang hoạt động.</p>
-          {canCreate && (
+          <p className="mt-3">
+            {view === 'archived' ? 'Chưa có công trình nào trong lưu trữ.' : 'Chưa có công trình nào đang hoạt động.'}
+          </p>
+          {canCreate && view !== 'archived' && (
             <Link href="/projects/new" className="mt-3 inline-block text-blue-600 hover:underline font-medium">
               + Tạo công trình đầu tiên
             </Link>
@@ -163,6 +188,9 @@ export default async function ProjectsPage() {
                             <p className="font-medium text-gray-900 group-hover:text-blue-600">{p.name}</p>
                             {p.status === 'completed' && (
                               <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 shrink-0">Đã hoàn thành</span>
+                            )}
+                            {p.status === 'archived' && (
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 shrink-0">Lưu trữ</span>
                             )}
                           </div>
                           {(p.start_date || p.end_date) && (
@@ -248,6 +276,9 @@ export default async function ProjectsPage() {
                     <p className="font-medium text-gray-900 group-hover:text-blue-600 truncate">{p.name}</p>
                     {p.status === 'completed' && (
                       <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 shrink-0">Đã hoàn thành</span>
+                    )}
+                    {p.status === 'archived' && (
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 shrink-0">Lưu trữ</span>
                     )}
                   </div>
                   <p className="text-sm text-gray-500 mt-0.5 truncate">

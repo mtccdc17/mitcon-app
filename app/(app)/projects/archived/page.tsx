@@ -1,13 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUser, getProfile } from '@/lib/supabase/cached'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, ArrowLeft } from 'lucide-react'
+import RestoreProjectButton from './RestoreProjectButton'
 
 export default async function ArchivedProjectsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/login')
 
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
+  const canRestore = profile.role === 'ceo'
+
+  const supabase = await createClient()
   const { data: projects } = await supabase
     .from('projects')
     .select('*')
@@ -32,25 +38,24 @@ export default async function ArchivedProjectsPage() {
         ) : (
           <div className="divide-y divide-gray-100">
             {projects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/projects/${p.id}`}
-                className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 group"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-700 group-hover:text-blue-600 truncate">{p.name}</p>
-                    <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Lưu trữ</span>
+              <div key={p.id} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50 group">
+                <Link href={`/projects/${p.id}`} className="flex items-center justify-between flex-1 min-w-0">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-700 group-hover:text-blue-600 truncate">{p.name}</p>
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Lưu trữ</span>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-0.5">{p.customer_name}</p>
+                    {p.archived_at && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Lưu trữ: {new Date(p.archived_at).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-500 mt-0.5">{p.customer_name}</p>
-                  {p.archived_at && (
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Lưu trữ: {new Date(p.archived_at).toLocaleDateString('vi-VN')}
-                    </p>
-                  )}
-                </div>
-                <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-400 flex-shrink-0 ml-4" />
-              </Link>
+                  <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-400 flex-shrink-0 ml-4" />
+                </Link>
+                {canRestore && <RestoreProjectButton projectId={p.id} projectName={p.name} />}
+              </div>
             ))}
           </div>
         )}
