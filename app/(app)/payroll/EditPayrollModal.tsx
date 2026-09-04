@@ -83,8 +83,10 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const chuanCong = calcChuanCong(month, year, employee.dept, employee.work_days)
+  // Entry mới (chưa từng lưu) — mặc định Ngày công TT = Công chuẩn (chưa có ngày nghỉ nào)
   const [form, setForm] = useState<Partial<PayrollEntry>>(
-    entry ?? EMPTY_ENTRY(employee.id, month, year)
+    entry ?? { ...EMPTY_ENTRY(employee.id, month, year), actual_days: chuanCong }
   )
   const slipRef = useRef<HTMLDivElement>(null)
 
@@ -95,7 +97,6 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
   const isFullSalary = (employee.salary_type ?? 'proportional') === 'full'
   const dependents = employee.dependents ?? 0
   const totalGiamTru = GIAM_TRU_CA_NHAN + dependents * GIAM_TRU_PHU_THUOC
-  const chuanCong = calcChuanCong(month, year, employee.dept, employee.work_days)
   const autoGiuXe = result.autoGiuXe
 
   // Entry ĐÃ tồn tại (có id) sẽ khóa base_salary_snap tại thời điểm tạo — nếu sau đó Sếp xác nhận
@@ -157,6 +158,17 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
 
   function setNum(key: keyof PayrollEntry, value: string) {
     setForm(prev => ({ ...prev, [key]: parseFloat(value) || 0 }))
+  }
+
+  // Đổi ngày nghỉ (2 loại) → tự tính lại Ngày công TT = Công chuẩn − nghỉ, khỏi phải tự trừ tay.
+  // Vẫn sửa tay được sau đó — chỉ auto lại khi Sếp đổi ngày nghỉ lần nữa.
+  function setLeave(patch: Partial<PayrollEntry>) {
+    setForm(prev => {
+      const next = { ...prev, ...patch }
+      const nghi = (next.ngay_nghi_khong_phep ?? 0) + (next.ngay_nghi_phep ?? 0)
+      next.actual_days = Math.max(0, Math.round((chuanCong - nghi) * 10) / 10)
+      return next
+    })
   }
 
   function setText(key: keyof PayrollEntry, value: string) {
@@ -300,13 +312,16 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                     {chuanCong} ngày
                   </div>
                 </div>
-                <NumField
-                  label="Ngày công TT"
-                  name="actual_days"
-                  value={form.actual_days ?? 0}
-                  onChange={setNum}
-                  step="0.5"
-                />
+                <div>
+                  <NumField
+                    label="Ngày công TT"
+                    name="actual_days"
+                    value={form.actual_days ?? 0}
+                    onChange={setNum}
+                    step="0.5"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Tự tính = Công chuẩn − ngày nghỉ bên dưới. Đổi ngày nghỉ là tự cập nhật lại; vẫn sửa tay được nếu cần.</p>
+                </div>
               </div>
             )}
 
@@ -348,7 +363,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   label="Ngày nghỉ"
                   name="ngay_nghi_khong_phep"
                   value={form.ngay_nghi_khong_phep ?? 0}
-                  onChange={setNum}
+                  onChange={(_, v) => setLeave({ ngay_nghi_khong_phep: parseFloat(v) || 0 })}
                   step="0.5"
                 />
                 <LeaveDayPicker
@@ -356,9 +371,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   month={month}
                   year={year}
                   value={form.ngay_nghi_khong_phep_ghi_chu ?? ''}
-                  onChange={(dates, count) => setForm(prev => ({
-                    ...prev, ngay_nghi_khong_phep_ghi_chu: dates, ngay_nghi_khong_phep: count,
-                  }))}
+                  onChange={(dates, count) => setLeave({ ngay_nghi_khong_phep_ghi_chu: dates, ngay_nghi_khong_phep: count })}
                   accent="red"
                 />
               </div>
@@ -367,7 +380,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   label="Ngày nghỉ phép năm"
                   name="ngay_nghi_phep"
                   value={form.ngay_nghi_phep ?? 0}
-                  onChange={setNum}
+                  onChange={(_, v) => setLeave({ ngay_nghi_phep: parseFloat(v) || 0 })}
                   step="0.5"
                 />
                 <LeaveDayPicker
@@ -375,9 +388,7 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
                   month={month}
                   year={year}
                   value={form.ngay_nghi_ghi_chu ?? ''}
-                  onChange={(dates, count) => setForm(prev => ({
-                    ...prev, ngay_nghi_ghi_chu: dates, ngay_nghi_phep: count,
-                  }))}
+                  onChange={(dates, count) => setLeave({ ngay_nghi_ghi_chu: dates, ngay_nghi_phep: count })}
                   accent="amber"
                 />
               </div>
