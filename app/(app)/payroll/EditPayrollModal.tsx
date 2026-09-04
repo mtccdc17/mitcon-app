@@ -11,6 +11,7 @@ import {
 } from './calc'
 import { formatVND } from '@/lib/utils'
 import PayslipCard from './PayslipCard'
+import LeaveDayPicker from './LeaveDayPicker'
 
 const MONTH_VN = ['','Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                   'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
@@ -339,44 +340,44 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
               </div>
             )}
 
-            {/* Ngày nghỉ — tách CÓ phép (trừ phép năm) và KHÔNG phép (chỉ để quản lý) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <NumField
-                label="Nghỉ phép (có phép)"
-                name="ngay_nghi_phep"
-                value={form.ngay_nghi_phep ?? 0}
-                onChange={setNum}
-                step="0.5"
-              />
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Ghi rõ ngày nghỉ phép
-                </label>
-                <input
-                  type="text"
+            {/* Ngày nghỉ — chọn trực tiếp trên lịch. CÓ phép trừ phép năm, KHÔNG phép chỉ để quản lý. */}
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-[7rem_1fr] gap-3 items-start">
+                <NumField
+                  label="Nghỉ phép (có phép)"
+                  name="ngay_nghi_phep"
+                  value={form.ngay_nghi_phep ?? 0}
+                  onChange={setNum}
+                  step="0.5"
+                />
+                <LeaveDayPicker
+                  label="Chọn ngày nghỉ phép trên lịch"
+                  month={month}
+                  year={year}
                   value={form.ngay_nghi_ghi_chu ?? ''}
-                  onChange={e => setText('ngay_nghi_ghi_chu', e.target.value)}
-                  placeholder="VD: 15/6, 20/6"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(dates, count) => setForm(prev => ({
+                    ...prev, ngay_nghi_ghi_chu: dates, ngay_nghi_phep: count,
+                  }))}
+                  accent="amber"
                 />
               </div>
-              <NumField
-                label="Nghỉ không phép"
-                name="ngay_nghi_khong_phep"
-                value={form.ngay_nghi_khong_phep ?? 0}
-                onChange={setNum}
-                step="0.5"
-              />
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Ghi rõ ngày nghỉ không phép
-                </label>
-                <input
-                  type="text"
+              <div className="grid grid-cols-[7rem_1fr] gap-3 items-start">
+                <NumField
+                  label="Nghỉ không phép"
+                  name="ngay_nghi_khong_phep"
+                  value={form.ngay_nghi_khong_phep ?? 0}
+                  onChange={setNum}
+                  step="0.5"
+                />
+                <LeaveDayPicker
+                  label="Chọn ngày nghỉ không phép trên lịch"
+                  month={month}
+                  year={year}
                   value={form.ngay_nghi_khong_phep_ghi_chu ?? ''}
-                  onChange={e => setText('ngay_nghi_khong_phep_ghi_chu', e.target.value)}
-                  placeholder="VD: 12/6 (không xin phép)"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(dates, count) => setForm(prev => ({
+                    ...prev, ngay_nghi_khong_phep_ghi_chu: dates, ngay_nghi_khong_phep: count,
+                  }))}
+                  accent="red"
                 />
               </div>
             </div>
