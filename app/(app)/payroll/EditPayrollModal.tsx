@@ -84,10 +84,15 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const chuanCong = calcChuanCong(month, year, employee.dept, employee.work_days)
-  // Entry mới (chưa từng lưu) — mặc định Ngày công TT = Công chuẩn (chưa có ngày nghỉ nào)
-  const [form, setForm] = useState<Partial<PayrollEntry>>(
-    entry ?? { ...EMPTY_ENTRY(employee.id, month, year), actual_days: chuanCong }
-  )
+  const [form, setForm] = useState<Partial<PayrollEntry>>(() => {
+    // Entry mới (chưa từng lưu) — mặc định Ngày công TT = Công chuẩn (chưa có ngày nghỉ nào)
+    if (!entry) return { ...EMPTY_ENTRY(employee.id, month, year), actual_days: chuanCong }
+    // Entry ĐÃ LƯU TỪ TRƯỚC — đối chiếu lại Ngày công TT với công thức hiện tại (Phép năm không trừ
+    // công/lương, Thứ 7 = 0.5...) — có thể đã lưu từ trước khi các quy tắc này tồn tại. Lệch thì sửa
+    // ngay lúc mở, khỏi phải bấm lại ngày nghỉ mới kích hoạt tính lại.
+    const correct = Math.max(0, Math.round((chuanCong - (entry.ngay_nghi_khong_phep ?? 0)) * 10) / 10)
+    return (entry.actual_days ?? 0) !== correct ? { ...entry, actual_days: correct } : entry
+  })
   const slipRef = useRef<HTMLDivElement>(null)
 
   const result = calcPayroll(employee, form, month, year)
