@@ -204,6 +204,18 @@ export interface PayrollResult {
 export const GIAM_TRU_CA_NHAN = 15_500_000   // NQ 110/2025
 export const GIAM_TRU_PHU_THUOC = 6_200_000  // Per dependent
 
+// VD 13000000 -> "13 triệu", 13500000 -> "13.5 triệu"
+export function formatTrieu(n: number): string {
+  const t = Math.round((n / 1_000_000) * 10) / 10
+  return `${t % 1 === 0 ? t.toFixed(0) : t.toFixed(1)} triệu`
+}
+
+// Nhãn lương gọn: nhân sự thường "13 triệu", có lương chi ngoài (salary_ck_cap) thì "15 triệu + 5 triệu"
+export function salaryLabel(emp: Pick<Employee, 'base_salary' | 'salary_ck_cap'>): string {
+  const extra = emp.salary_ck_cap ?? 0
+  return extra > 0 ? `${formatTrieu(emp.base_salary)} + ${formatTrieu(extra)}` : formatTrieu(emp.base_salary)
+}
+
 export function calcTax(taxable: number): number {
   if (taxable <= 0) return 0
   if (taxable <= 5_000_000)  return Math.round(taxable * 0.05)

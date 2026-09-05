@@ -1,5 +1,5 @@
 import React from 'react'
-import { Employee, PayrollEntry, PayrollResult, calcChuanCong, PROBATION_FACTOR } from './calc'
+import { Employee, PayrollEntry, PayrollResult, calcChuanCong, PROBATION_FACTOR, salaryLabel } from './calc'
 
 const fmt = (n: number) =>
   n === 0 ? '—' : n.toLocaleString('vi-VN') + ' đ'
@@ -112,6 +112,7 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
                 color: result.isIntern ? '#c4b5fd' : isChinhThuc ? '#86efac' : '#fde68a',
               }}>
                 {result.isIntern ? 'Thực tập sinh' : isChinhThuc ? 'Chính thức' : 'Thử việc'}
+                {!isFullSalary ? ` (${salaryLabel(employee)})` : ''}
               </span>
               {isFullSalary && (
                 <span style={{

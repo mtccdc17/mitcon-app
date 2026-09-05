@@ -7,7 +7,7 @@ import { X, Users, Image } from 'lucide-react'
 import {
   Employee, PayrollEntry, calcPayroll, EMPTY_ENTRY,
   calcChuanCong, GIAM_TRU_CA_NHAN, GIAM_TRU_PHU_THUOC,
-  calcLeaveAccrued, PROBATION_FACTOR, effectiveBaseSalary,
+  calcLeaveAccrued, PROBATION_FACTOR, effectiveBaseSalary, salaryLabel,
 } from './calc'
 import { formatVND } from '@/lib/utils'
 import PayslipCard from './PayslipCard'
@@ -15,12 +15,6 @@ import LeaveDayPicker from './LeaveDayPicker'
 
 const MONTH_VN = ['','Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                   'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
-
-// VD 13000000 -> "13 triệu", 13500000 -> "13.5 triệu"
-function formatTrieu(n: number): string {
-  const t = Math.round((n / 1_000_000) * 10) / 10
-  return `${t % 1 === 0 ? t.toFixed(0) : t.toFixed(1)} triệu`
-}
 
 interface Props {
   employee: Employee
@@ -100,11 +94,6 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
     return (entry.actual_days ?? 0) !== correct ? { ...entry, actual_days: correct } : entry
   })
   const slipRef = useRef<HTMLDivElement>(null)
-
-  // Nhãn lương gọn để hiện kế bên "Chính thức" — Tấn (có lương chi ngoài) hiện "15 triệu + 5 triệu"
-  const salaryLabel = (employee.salary_ck_cap ?? 0) > 0
-    ? `${formatTrieu(employee.base_salary)} + ${formatTrieu(employee.salary_ck_cap ?? 0)}`
-    : formatTrieu(employee.base_salary)
 
   const result = calcPayroll(employee, form, month, year)
   const adv = advance ?? { ck: 0, tm: 0 }
@@ -286,12 +275,12 @@ export default function EditPayrollModal({ employee, entry, month, year, userId,
               </div>
             ) : !result.bhxhStarted ? (
               <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-3 text-xs text-purple-700">
-                <strong>Chính thức</strong> ({salaryLabel}) — lương 100%{employee.official_from_month ? ` (từ ${employee.official_from_month}/${employee.official_from_year})` : ''}.
+                <strong>Chính thức</strong> ({salaryLabel(employee)}) — lương 100%{employee.official_from_month ? ` (từ ${employee.official_from_month}/${employee.official_from_year})` : ''}.
                 {' '}<strong>Chưa trừ BHXH</strong> — công ty chưa tới mốc đóng BHXH{employee.bhxh_from_month ? ` (từ ${employee.bhxh_from_month}/${employee.bhxh_from_year})` : ''}.
               </div>
             ) : (
               <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3 text-xs text-green-700">
-                <strong>Chính thức</strong> ({salaryLabel}) — lương 100%{employee.official_from_month ? ` (từ ${employee.official_from_month}/${employee.official_from_year})` : ''}. Có trừ BHXH.
+                <strong>Chính thức</strong> ({salaryLabel(employee)}) — lương 100%{employee.official_from_month ? ` (từ ${employee.official_from_month}/${employee.official_from_year})` : ''}. Có trừ BHXH.
               </div>
             )}
 
