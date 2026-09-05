@@ -202,10 +202,16 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
           {/* Thu nhập */}
           <p style={s.sectionTitle('#16a34a')}>Thu nhập</p>
           <Row label={result.isSplitSalary ? 'TN ngày công (qua CK)' : 'TN ngày công'} value={result.tnNgayCong} />
-          {result.tienTC > 0 && !result.isSplitSalary && (
+          {!result.isSplitSalary && result.tienTCThuong > 0 && (
             <Row
-              label={`Tiền tăng ca${overtime > 0 ? ` · ${overtime}h thường` : ''}${overtimeLe > 0 ? ` · ${overtimeLe}h CN/Lễ` : ''}${overtimeNote ? ` (${overtimeNote})` : ''}`}
-              value={result.tienTC}
+              label={`Tăng ca thường · ${overtime}h${overtimeNote ? ` (${overtimeNote})` : ''}`}
+              value={result.tienTCThuong}
+            />
+          )}
+          {!result.isSplitSalary && result.tienTCLe > 0 && (
+            <Row
+              label={`Tăng ca CN/Lễ · ${overtimeLe}h${overtimeNote ? ` (${overtimeNote})` : ''}`}
+              value={result.tienTCLe}
             />
           )}
           <Row label="TN trước thuế" value={result.tnTruocThue} bold />
@@ -239,10 +245,16 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
               {result.isSplitSalary && result.luongNgoai > 0 && (
                 <Row label="Lương chi ngoài (theo ngày công)" value={result.luongNgoai} />
               )}
-              {result.isSplitSalary && result.tienTC > 0 && (
+              {result.isSplitSalary && result.tienTCThuong > 0 && (
                 <Row
-                  label={`Tiền tăng ca${overtime > 0 ? ` · ${overtime}h thường` : ''}${overtimeLe > 0 ? ` · ${overtimeLe}h CN/Lễ` : ''}${overtimeNote ? ` (${overtimeNote})` : ''}`}
-                  value={result.tienTC}
+                  label={`Tăng ca thường · ${overtime}h${overtimeNote ? ` (${overtimeNote})` : ''}`}
+                  value={result.tienTCThuong}
+                />
+              )}
+              {result.isSplitSalary && result.tienTCLe > 0 && (
+                <Row
+                  label={`Tăng ca CN/Lễ · ${overtimeLe}h${overtimeNote ? ` (${overtimeNote})` : ''}`}
+                  value={result.tienTCLe}
                 />
               )}
               {result.pcGiuXe > 0 && <Row label="PC Giữ xe" value={result.pcGiuXe} />}
