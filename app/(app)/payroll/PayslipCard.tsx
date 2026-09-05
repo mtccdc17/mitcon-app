@@ -170,8 +170,15 @@ const PayslipCard = React.forwardRef<HTMLDivElement, Props>(
               {overtime > 0 && (
                 <div style={{ flex: 1, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 9,
                   padding: '8px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, color: '#f97316', marginBottom: 2 }}>Tăng ca</div>
+                  <div style={{ fontSize: 10, color: '#f97316', marginBottom: 2 }}>Tăng ca thường</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#ea580c' }}>{overtime}h</div>
+                </div>
+              )}
+              {overtimeLe > 0 && (
+                <div style={{ flex: 1, background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 9,
+                  padding: '8px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: '#0891b2', marginBottom: 2 }}>Tăng ca CN/Lễ</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0e7490' }}>{overtimeLe}h</div>
                 </div>
               )}
               {ngayNghiPhep > 0 && (
