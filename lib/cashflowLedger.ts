@@ -120,11 +120,13 @@ export async function fetchCashflowLedger(supabase: SupabaseClient): Promise<Led
     const ch = t.note === 'Từ quỹ ứng' ? null : (noteChannel(t.note) ?? 'tk_cty')
     if (!ch) continue
     const desc = `${t.description}${projectName.get(t.project_id ?? '') ? ' — ' + projectName.get(t.project_id ?? '') : ''}`
-    const hist = (t.payment_history as { amount?: number; date?: string }[] | null) ?? []
+    const hist = (t.payment_history as { amount?: number; date?: string; method?: string | null }[] | null) ?? []
     if (hist.length > 0) {
       hist.forEach((h, i) => {
         if (!h.date || !h.amount || h.amount <= 0) return
-        entries.push({ id: `tx-${t.id}-${i}`, date: h.date, channel: ch, direction: 'out', category: 'Giao dịch công trình', description: desc, amount: h.amount })
+        // Mỗi đợt trả có hình thức TT (method) riêng → theo đúng kênh của đợt đó; đợt không ghi thì theo kênh chung.
+        const hCh = noteChannel(h.method) ?? ch
+        entries.push({ id: `tx-${t.id}-${i}`, date: h.date, channel: hCh, direction: 'out', category: 'Giao dịch công trình', description: desc, amount: h.amount })
       })
     } else {
       const date = t.payment_date ?? t.transaction_date

@@ -57,7 +57,7 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
 
   // Ngày tiền THẬT rời kênh = ngày thanh toán (payment_date); khoản cũ chưa có thì fallback ngày ghi.
   // Quan trọng: khoản chi ghi TRƯỚC chốt sổ nhưng TRẢ SAU chốt sổ vẫn phải trừ vào số dư.
-  type PayHistEntry = { amount?: number; date?: string }
+  type PayHistEntry = { amount?: number; date?: string; method?: string | null }
   type TxLite = {
     amount?: number | null
     payment_status?: string | null
@@ -74,19 +74,8 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
   const dateOk = (d?: string | null) => (!closing || (d != null && d >= closing)) && upTo(d)
   const isPaidOrPartial = (t: TxLite) => t.payment_status === 'paid' || t.payment_status === 'partial'
   // Tiền THẬT đã rời kênh — khoản trả nhiều đợt (payment_history) tách đúng từng đợt vào ĐÚNG
-  // ngày của đợt đó, không gộp hết vào 1 ngày (payment_date chỉ là ngày đợt GẦN NHẤT, sai lệch
-  // nếu các đợt nằm khác tháng/khác kỳ chốt sổ nhau — bug thật đã xảy ra với khoản trả 2 đợt
-  // khác tháng, "Lịch sử chi trả" gộp nhầm cả 2 đợt vào tháng của đợt cuối). Khoản cũ/trả 1 lần
-  // chưa có payment_history → dùng lại actual_paid/amount tại settleDate như trước.
-  const cashOutOf = (t: TxLite): number => {
-    const hist = t.payment_history
-    if (hist && hist.length > 0) {
-      return hist.reduce((s, h) => s + (dateOk(h.date) ? (h.amount ?? 0) : 0), 0)
-    }
-    if (t.payment_status === 'paid') return settledAfter(t) ? (t.amount ?? 0) : 0
-    if (t.payment_status === 'partial') return settledAfter(t) ? (t.actual_paid ?? 0) : 0
-    return 0
-  }
+  // ngày + ĐÚNG kênh (method) của đợt đó — xem cashOutOfCh() phía dưới. Khoản cũ/trả 1 lần chưa
+  // có payment_history → dùng lại actual_paid/amount tại settleDate như trước.
   // Nợ chưa trả: chỉ để báo biết, KHÔNG trừ vào số dư (partial: chỉ báo phần còn thiếu)
   const isUnpaid = (t: TxLite) => t.payment_status !== 'paid'
   const unpaidPart = (t: TxLite, gross: number) =>
@@ -100,6 +89,31 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
   const isNoteCty = (t: { note?: string | null }) => t.note === 'CK CTY' || t.note === 'CK công ty'
   const isNoteCn  = (t: { note?: string | null }) => t.note === 'CK CN' || t.note === 'CK cá nhân'
   const isNoteTm  = (t: { note?: string | null }) => t.note === 'TM' || t.note === 'Tiền mặt'
+  // Hình thức TT ("TM" / "CK CN" / "CK CTY") → kênh dòng tiền. Dùng cho cả note giao dịch lẫn method từng đợt.
+  const noteCh = (s?: string | null): 'tk_cty' | 'tk_cn' | 'tm' | null => {
+    const n = (s ?? '').trim().toLowerCase()
+    if (n === 'ck cty' || n === 'ck công ty') return 'tk_cty'
+    if (n === 'ck cn'  || n === 'ck cá nhân') return 'tk_cn'
+    if (n === 'tm'     || n === 'tiền mặt')   return 'tm'
+    return null
+  }
+  // Tiền THẬT ra khỏi ĐÚNG kênh `wantCh` cho giao dịch t — khoản trả nhiều đợt tách theo `method`
+  // của TỪNG đợt (đợt CK CN trừ TK Cá nhân, đợt TM trừ Tiền mặt…), đợt không ghi method thì theo
+  // kênh chung của giao dịch (note). Khoản trả 1 lần / không có payment_history → toàn bộ vào kênh chung.
+  const cashOutOfCh = (t: TxLite & { note?: string | null }, wantCh: 'tk_cty' | 'tk_cn' | 'tm'): number => {
+    const def = noteCh(t.note) ?? 'tk_cty'
+    const hist = t.payment_history
+    if (hist && hist.length > 0) {
+      return hist.reduce((s, h) => {
+        if (!dateOk(h.date)) return s
+        return (noteCh(h.method) ?? def) === wantCh ? s + (h.amount ?? 0) : s
+      }, 0)
+    }
+    if (def !== wantCh) return 0
+    if (t.payment_status === 'paid') return settledAfter(t) ? (t.amount ?? 0) : 0
+    if (t.payment_status === 'partial') return settledAfter(t) ? (t.actual_paid ?? 0) : 0
+    return 0
+  }
   // GS chi từ quỹ đã ứng → tiền đã rời công ty lúc tạm ứng rồi (trừ qua advOut), KHÔNG được trừ lần nữa
   const isFromAdvance = (t: { note?: string | null }) => t.note === 'Từ quỹ ứng'
   // Hóa đơn VAT vẫn có thể trả từ TK Cá nhân/Tiền mặt (VD: khoản dưới 5tr vẫn xuất VAT được) — phải
@@ -110,15 +124,15 @@ export async function computeCashflow(supabase: SupabaseClient, asOfDate?: strin
   const vatTxTm  = vatTxC.filter(t => !isFromAdvance(t) && isNoteTm(t))
 
   // LƯU Ý: amount ĐÃ gồm VAT (calcVAT tách VAT từ giá gross) → tiền chi ra = amount, KHÔNG cộng vat_amount nữa.
-  const outTkCty =
-    vatTxCty.filter(isPaidOrPartial).reduce((s, t) => s + cashOutOf(t), 0) +
-    noVatTxC.filter(t => isNoteCty(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
-  const outTkCn =
-    vatTxCn.filter(isPaidOrPartial).reduce((s, t) => s + cashOutOf(t), 0) +
-    noVatTxC.filter(t => isNoteCn(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
-  const outTm =
-    vatTxTm.filter(isPaidOrPartial).reduce((s, t) => s + cashOutOf(t), 0) +
-    noVatTxC.filter(t => isNoteTm(t) && isPaidOrPartial(t)).reduce((s, t) => s + cashOutOf(t), 0)
+  // Tập giao dịch được tính (giữ đúng như cũ: VAT lấy tất cả trừ "Từ quỹ ứng"; không-VAT chỉ lấy khoản có
+  // ghi hình thức TT) — nhưng số tiền từng đợt tách theo `method` của đợt đó qua cashOutOfCh().
+  const outConsidered = [
+    ...vatTxC.filter(t => !isFromAdvance(t)),
+    ...noVatTxC.filter(t => !isFromAdvance(t) && (isNoteCty(t) || isNoteCn(t) || isNoteTm(t))),
+  ].filter(isPaidOrPartial)
+  const outTkCty = outConsidered.reduce((s, t) => s + cashOutOfCh(t, 'tk_cty'), 0)
+  const outTkCn  = outConsidered.reduce((s, t) => s + cashOutOfCh(t, 'tk_cn'), 0)
+  const outTm    = outConsidered.reduce((s, t) => s + cashOutOfCh(t, 'tm'), 0)
 
   const unpaidTkCty =
     vatTxCty.filter(isUnpaid).reduce((s, t) => s + unpaidPart(t, t.amount), 0) +
