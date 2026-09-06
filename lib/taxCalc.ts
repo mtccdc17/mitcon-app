@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { calcPayroll, attachSalaryChanges } from '@/app/(app)/payroll/calc'
-import { ceoBhxhForRange } from '@/lib/opexFixed'
+import { ceoBhxhForRange, fixedVatInputForRange } from '@/lib/opexFixed'
+import { calcVAT } from '@/lib/utils'
 
 // ══════════════════════════════════════════════════════════════════
 // Nghĩa vụ VAT / TNCN thầu phụ / BHXH LŨY KẾ (từ toàn bộ dữ liệu hiện có
@@ -39,6 +40,10 @@ interface TxRow {
 interface ContractRow { id: string; type: string; value: number; invoice_issue_date?: string | null }
 interface ProjectRow { id: string; status: string; end_date?: string | null }
 interface RevenueRow { amount?: number | null; contract_id?: string | null; project_id?: string | null }
+interface OpCostRow { amount?: number | null; month?: number | null; year?: number | null; vat_rate?: string | null }
+
+const opCostRate = (r?: string | null): 'vat_10' | 'vat_8' | 'no_vat' =>
+  r === 'vat_10' ? 'vat_10' : r === 'vat_8' ? 'vat_8' : 'no_vat'
 
 // Nghĩa vụ VAT phải nộp bù, cộng dồn qua TỪNG QUÝ có dữ liệu — mỗi quý áp đúng
 // phương pháp tương ứng của opex (completion date trước Q2/2026, invoice date từ đó),
@@ -50,6 +55,7 @@ export function computeCumulativeVATFromRevenue(
   transactions: TxRow[],
   projects: ProjectRow[],
   revenue: RevenueRow[],
+  operatingCosts: OpCostRow[] = [],
 ): number {
   const vatContractIds = new Set(contracts.filter(c => c.type === 'vat').map(c => c.id))
   const regularTx = transactions.filter(t => !t.is_vat_allocation)
@@ -68,11 +74,17 @@ export function computeCumulativeVATFromRevenue(
   for (let year = minYear; year <= curYear; year++) {
     const qTo = year === curYear ? curQuarter : 4
     for (let quarter = 1; quarter <= qTo; quarter++) {
-      const { fromDate, toDate } = quarterRange(year, quarter)
+      const { fromM, toM, fromDate, toDate } = quarterRange(year, quarter)
       const inRangeDate = (d?: string | null) => d != null && d >= fromDate && d <= toDate
       const completedIds = new Set(projects.filter(p => p.status === 'completed' && inRangeDate(p.end_date)).map(p => p.id))
       const cogsTx = regularTx.filter(t => t.project_id && completedIds.has(t.project_id))
       const useInvoiceMethod = fromDate >= VAT_METHOD_CUTOVER_DATE
+
+      // VAT đầu vào từ chi phí vận hành có chọn VAT + chi phí cố định có hóa đơn VAT (khớp opex/page.tsx)
+      const extraVatInput = operatingCosts
+        .filter(c => c.year === year && (c.month ?? 0) >= fromM && (c.month ?? 0) <= toM)
+        .reduce((s, c) => s + calcVAT(c.amount ?? 0, opCostRate(c.vat_rate)), 0)
+        + fixedVatInputForRange(year, fromM, toM)
 
       let thueBu: number
       if (useInvoiceMethod) {
@@ -82,6 +94,7 @@ export function computeCumulativeVATFromRevenue(
         const vatDauVao = transactions
           .filter(t => !t.is_vat_allocation && (t.vat_amount ?? 0) > 0 && inRangeDate(t.invoice_date ?? t.transaction_date))
           .reduce((s, t) => s + (t.vat_amount ?? 0), 0)
+          + extraVatInput
         thueBu = Math.max(0, vatDauRa - vatDauVao)
       } else {
         const rangeRev = revenue.filter(r => r.project_id && completedIds.has(r.project_id))
@@ -93,6 +106,7 @@ export function computeCumulativeVATFromRevenue(
         const vatDauVao = cogsTx.reduce((s, t) => s + (t.vat_amount ?? 0), 0)
           + vatAllocTx.reduce((s, t) => s + (t.vat_amount ?? 0), 0)
           + vatDestTx.reduce((s, t) => s + (t.vat_dest_amount ?? 0), 0)
+          + extraVatInput
         thueBu = Math.max(0, vatDauRa - vatDauVao)
       }
       total += thueBu
@@ -192,6 +206,7 @@ export async function computeTaxObligationSummary(supabase: SupabaseClient): Pro
   const [
     { data: contracts }, { data: transactions }, { data: projects }, { data: revenue },
     { data: employees }, { data: payrollEntries }, { data: salaryChanges }, { data: taxPayments },
+    { data: operatingCosts },
   ] = await Promise.all([
     supabase.from('contracts').select('id, type, value, invoice_issue_date'),
     supabase.from('transactions').select('amount, vat_amount, tncn_amount, is_labor, is_vat_allocation, contract_id, project_id, vat_dest_project_id, vat_dest_amount, transaction_date, invoice_date'),
@@ -201,9 +216,10 @@ export async function computeTaxObligationSummary(supabase: SupabaseClient): Pro
     supabase.from('payroll_entries').select('*'),
     supabase.from('salary_changes').select('*'),
     supabase.from('tax_payments').select('kind, amount'),
+    supabase.from('operating_costs').select('amount, month, year, vat_rate'),
   ])
 
-  const vatPhaiNop = computeCumulativeVATFromRevenue(contracts ?? [], transactions ?? [], projects ?? [], revenue ?? [])
+  const vatPhaiNop = computeCumulativeVATFromRevenue(contracts ?? [], transactions ?? [], projects ?? [], revenue ?? [], operatingCosts ?? [])
   const tncnPhaiNop = computeCumulativeTNCN(transactions ?? [])
   const bhxhPhaiNop = computeCumulativeBHXH(employees ?? [], payrollEntries ?? [], salaryChanges ?? [])
 

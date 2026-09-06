@@ -1,19 +1,22 @@
+import { calcVAT } from './utils'
+
 // Chi phí cố định hằng tháng — dùng chung cho trang Vận hành + tính TNDN
 export interface FixedItem {
   name: string
-  amount: number
+  amount: number       // ĐÃ gồm VAT nếu có vatRate
   note?: string
   startYear: number
   startMonth: number
   endYear?: number     // Áp dụng tới hết tháng này (bỏ trống = còn hiệu lực)
   endMonth?: number
   group: 'co_dinh' | 'nhan_su'   // nhan_su: 2 kế toán freelance — CEO xếp vào chi phí nhân sự
+  vatRate?: 'vat_10' | 'vat_8'   // có hóa đơn VAT → phần VAT trong amount được khấu trừ đầu vào
 }
 
 // Đổi giá giữa chừng → tách thành 2 dòng cùng tên, khác khoảng hiệu lực.
 export const FIXED_OPEX: FixedItem[] = [
   { name: 'Thuê văn phòng',          amount: 7_500_000, note: 'CK cá nhân, không VAT', startYear: 2026, startMonth: 1, endYear: 2026, endMonth: 8, group: 'co_dinh' },
-  { name: 'Thuê văn phòng',          amount: 10_000_000, note: 'Đã gồm VAT · từ T9/2026', startYear: 2026, startMonth: 9, group: 'co_dinh' },
+  { name: 'Thuê văn phòng',          amount: 10_000_000, note: 'Đã gồm VAT 10% · từ T9/2026', startYear: 2026, startMonth: 9, group: 'co_dinh', vatRate: 'vat_10' },
   { name: 'Quản lý tòa nhà + gửi xe', amount: 2_610_000, note: 'Từ T9/2026', startYear: 2026, startMonth: 9, group: 'co_dinh' },
   { name: 'Điện + wifi + vệ sinh',   amount: 1_000_000, startYear: 2026, startMonth: 1, endYear: 2026, endMonth: 6, group: 'co_dinh' },
   { name: 'Điện + wifi + vệ sinh',   amount: 1_200_000, note: 'Tăng từ T7/2026', startYear: 2026, startMonth: 7, group: 'co_dinh' },
@@ -29,6 +32,17 @@ const beforeEnd = (i: FixedItem, m: number, y: number) =>
 
 export function fixedItemsForMonth(month: number, year: number): FixedItem[] {
   return FIXED_OPEX.filter(i => afterStart(i, month, year) && beforeEnd(i, month, year))
+}
+
+// VAT đầu vào được khấu trừ từ chi phí cố định có hóa đơn VAT, cộng dồn qua từng tháng trong kỳ.
+export function fixedVatInputForRange(year: number, fromMonth: number, toMonth: number): number {
+  let total = 0
+  for (let m = fromMonth; m <= toMonth; m++) {
+    for (const it of fixedItemsForMonth(m, year)) {
+      if (it.vatRate) total += calcVAT(it.amount, it.vatRate)
+    }
+  }
+  return total
 }
 
 // Ngày tiền THẬT rời tài khoản (CEO chốt 15/7/2026):

@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import OpexClient from './OpexClient'
 import { calcPayroll, attachSalaryChanges } from '@/app/(app)/payroll/calc'
 import { computeCashflow } from '@/lib/cashflow'
-import { fixedItemsForRange, ceoBhxhForRange } from '@/lib/opexFixed'
+import { fixedItemsForRange, ceoBhxhForRange, fixedVatInputForRange } from '@/lib/opexFixed'
+import { calcVAT } from '@/lib/utils'
 
 interface PageProps {
   searchParams: Promise<{ period?: string; month?: string; quarter?: string; year?: string }>
@@ -141,11 +142,23 @@ export default async function OpexPage({ searchParams }: PageProps) {
   //  (B) "Theo ngày hóa đơn thực tế" (đúng nguyên tắc kê khai thuế GTGT — Thông tư 69/2025,
   //      khớp trang Kiểm Soát Hóa Đơn) — dùng từ Quý 2/2026 trở đi theo quyết định của CEO.
   // ══════════════════════════════════════════════════════════════════
+
+  // VAT đầu vào từ chi phí vận hành có chọn VAT (operating_costs) + chi phí cố định có hóa đơn VAT
+  // (VD: tiền thuê văn phòng từ T9/2026). Phần VAT nằm trong số tiền gross → tách bằng calcVAT.
+  const costRate = (r?: string | null): 'vat_10' | 'vat_8' | 'no_vat' =>
+    r === 'vat_10' ? 'vat_10' : r === 'vat_8' ? 'vat_8' : 'no_vat'
+  const opexVatInput = (allCosts ?? [])
+    .filter(c => inRangeMonth(c.month))
+    .reduce((s, c) => s + calcVAT(c.amount ?? 0, costRate(c.vat_rate)), 0)
+  const fixedVatInput = fixedVatInputForRange(year, fromM, toM)
+  const extraVatInput = opexVatInput + fixedVatInput
+
   const vatDauRaCompletion = revVatGross - doanhThuVatNet
   const vatAllocTx = (transactions ?? []).filter(t => t.is_vat_allocation && t.project_id && completedIds.has(t.project_id))
   const vatDauVaoCompletion = cogsTx.reduce((s, t) => s + (t.vat_amount ?? 0), 0)
     + vatAllocTx.reduce((s, t) => s + (t.vat_amount ?? 0), 0)
     + vatDestTx.reduce((s, t) => s + (t.vat_dest_amount ?? 0), 0)
+    + extraVatInput
   const thueBuCompletion = Math.max(0, vatDauRaCompletion - vatDauVaoCompletion)
 
   const VAT_METHOD_CUTOVER_DATE = '2026-04-01' // Quý 2/2026
@@ -164,6 +177,7 @@ export default async function OpexPage({ searchParams }: PageProps) {
   const vatDauVaoInvoice = (vatInputTx ?? [])
     .filter(t => !t.is_vat_allocation && inRangeDate(t.invoice_date ?? t.transaction_date))
     .reduce((s, t) => s + (t.vat_amount ?? 0), 0)
+    + extraVatInput
   const thueBuInvoice = Math.max(0, vatDauRaInvoice - vatDauVaoInvoice)
 
   const vatMethod: 'invoice' | 'completion' = useInvoiceDateMethod ? 'invoice' : 'completion'
@@ -214,7 +228,10 @@ export default async function OpexPage({ searchParams }: PageProps) {
   }
 
   // ══ Cơ sở thuế TNDN ══
-  const chiPhiVanHanhHopLe = payrollTN1 + sumC(rangeCosts.filter(c => c.is_deductible))
+  // Chi phí vận hành hợp lệ tính NET VAT (phần VAT đã khấu trừ đầu vào ở trên, không kể vào chi phí nữa).
+  const chiPhiVanHanhHopLe = payrollTN1 + rangeCosts
+    .filter(c => c.is_deductible)
+    .reduce((s, c) => s + (c.amount ?? 0) - calcVAT(c.amount ?? 0, costRate(c.vat_rate)), 0)
   const coSoThue = doanhThuVatNet - chiPhiVatTuHopLe - chiPhiNhanCongHopLe - chiPhiVanHanhHopLe - bhxhTotal
   const taxTable = {
     doanhThuVatNet, chiPhiVatTu: chiPhiVatTuHopLe, chiPhiNhanCong: chiPhiNhanCongHopLe,
