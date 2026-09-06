@@ -12,7 +12,9 @@ export interface FixedItem {
 
 // Đổi giá giữa chừng → tách thành 2 dòng cùng tên, khác khoảng hiệu lực.
 export const FIXED_OPEX: FixedItem[] = [
-  { name: 'Thuê văn phòng',          amount: 7_500_000, note: 'CK cá nhân, không VAT', startYear: 2026, startMonth: 1, group: 'co_dinh' },
+  { name: 'Thuê văn phòng',          amount: 7_500_000, note: 'CK cá nhân, không VAT', startYear: 2026, startMonth: 1, endYear: 2026, endMonth: 8, group: 'co_dinh' },
+  { name: 'Thuê văn phòng',          amount: 10_000_000, note: 'Đã gồm VAT · từ T9/2026', startYear: 2026, startMonth: 9, group: 'co_dinh' },
+  { name: 'Quản lý tòa nhà + gửi xe', amount: 2_610_000, note: 'Từ T9/2026', startYear: 2026, startMonth: 9, group: 'co_dinh' },
   { name: 'Điện + wifi + vệ sinh',   amount: 1_000_000, startYear: 2026, startMonth: 1, endYear: 2026, endMonth: 6, group: 'co_dinh' },
   { name: 'Điện + wifi + vệ sinh',   amount: 1_200_000, note: 'Tăng từ T7/2026', startYear: 2026, startMonth: 7, group: 'co_dinh' },
   { name: 'Nước uống + bánh kẹo',    amount:   500_000, startYear: 2026, startMonth: 1, group: 'co_dinh' },
