@@ -35,6 +35,7 @@ export interface EmployeeRow {
   bhxh_from_year?: number | null
   end_month?: number | null
   end_year?: number | null
+  end_date?: string | null
   salary_changes?: SalaryChange[]
   work_days?: number[] | null
 }
@@ -51,8 +52,7 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
   const [loading, setLoading] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [confirmDelete,  setConfirmDelete]  = useState(false)
-  const [endMonth, setEndMonth] = useState(String(new Date().getMonth() + 1))
-  const [endYear,  setEndYear]  = useState(String(new Date().getFullYear()))
+  const [endDate, setEndDate] = useState(employee?.end_date ?? new Date().toISOString().slice(0, 10))
 
   const isEdit = !!employee
 
@@ -137,11 +137,14 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
 
   async function handleArchive() {
     if (!employee) return
-    if (!endMonth || !endYear) return alert('Vui lòng nhập tháng/năm nghỉ việc.')
+    if (!endDate) return alert('Vui lòng chọn ngày thôi việc.')
+    // Ghi song song end_month/end_year (suy ra từ ngày) để logic bảng lương chạy nguyên:
+    // còn hiện ở tháng thôi việc, ẩn từ tháng kế tiếp.
+    const [y, m] = endDate.split('-').map(Number)
     setLoading(true)
     const { error } = await supabase
       .from('employees')
-      .update({ is_active: false, end_month: parseInt(endMonth), end_year: parseInt(endYear) })
+      .update({ is_active: false, end_date: endDate, end_month: m, end_year: y })
       .eq('id', employee.id)
     if (!error) { router.refresh(); onClose() }
     else { alert('Lỗi. Vui lòng thử lại.'); setLoading(false) }
@@ -151,7 +154,7 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
     if (!employee) return
     setLoading(true)
     const { error } = await supabase
-      .from('employees').update({ is_active: true, end_month: null, end_year: null }).eq('id', employee.id)
+      .from('employees').update({ is_active: true, end_month: null, end_year: null, end_date: null }).eq('id', employee.id)
     if (!error) { router.refresh(); onClose() }
     else { alert('Lỗi. Vui lòng thử lại.'); setLoading(false) }
   }
@@ -179,7 +182,12 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
               {isEdit ? 'Chỉnh sửa nhân sự' : 'Thêm nhân sự mới'}
             </h2>
             {isEdit && !employee.is_active && (
-              <span className="text-xs text-red-500 font-medium">Đã thôi việc</span>
+              <span className="text-xs text-red-500 font-medium">
+                Đã thôi việc
+                {employee.end_date
+                  ? ` từ ${new Date(employee.end_date).toLocaleDateString('vi-VN')}`
+                  : employee.end_month ? ` từ T${employee.end_month}/${employee.end_year}` : ''}
+              </span>
             )}
           </div>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
@@ -401,21 +409,15 @@ export default function EmployeeModal({ employee, onClose, userId: _userId }: Pr
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-700">
-                  Đánh dấu <strong>{employee.name}</strong> thôi việc? Nhân sự sẽ không còn
-                  xuất hiện trong bảng lương từ sau tháng nghỉ trở đi (các tháng trước đó vẫn giữ nguyên).
+                  Đánh dấu <strong>{employee.name}</strong> thôi việc? Nhân sự vẫn còn ở bảng lương
+                  <strong> tháng thôi việc</strong> (để chốt lương tháng cuối), rồi <strong>ẩn hẳn từ tháng kế tiếp</strong> —
+                  các tháng trước đó giữ nguyên.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className={lbl}>Nghỉ việc từ — tháng</label>
-                  <input className={`${inp} text-right`} type="number" min="1" max="12"
-                    value={endMonth} onChange={e => setEndMonth(e.target.value)} />
-                </div>
-                <div>
-                  <label className={lbl}>Nghỉ việc từ — năm</label>
-                  <input className={`${inp} text-right`} type="number" min="2020" max="2100"
-                    value={endYear} onChange={e => setEndYear(e.target.value)} />
-                </div>
+              <div className="mb-3">
+                <label className={lbl}>Ngày thôi việc</label>
+                <input className={inp} type="date"
+                  value={endDate} onChange={e => setEndDate(e.target.value)} />
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setConfirmArchive(false)}
