@@ -243,12 +243,14 @@ export default async function OpexPage({ searchParams }: PageProps) {
   const cashflow = await computeCashflow(supabase)
   const [
     { data: chotSoSettings }, { data: transfers },
-    { data: fixedPayments }, { data: taxPayments },
+    { data: fixedPayments }, { data: taxPayments }, { data: closingHistory },
   ] = await Promise.all([
     supabase.from('cashflow_settings').select('*').eq('id', 1).maybeSingle(),
     supabase.from('channel_transfers').select('*').order('date', { ascending: false }),
     supabase.from('fixed_cost_payments').select('*').eq('year', year),
     supabase.from('tax_payments').select('*').order('paid_date', { ascending: false }),
+    supabase.from('cashflow_closings').select('*')
+      .order('closing_date', { ascending: false }).order('created_at', { ascending: false }).limit(30),
   ])
   // Lọc theo kỳ ghi nhận (for_month/for_year) chứ KHÔNG theo paid_date — một khoản có thể
   // nộp thật ở ngày khác kỳ nó thuộc về. Việc lọc theo for_month/for_year (kèm fallback paid_date
@@ -300,6 +302,7 @@ export default async function OpexPage({ searchParams }: PageProps) {
       taxTable={taxTable}
       cashflow={cashflow}
       chotSo={chotSoSettings ?? null}
+      closingHistory={closingHistory ?? []}
       transfers={transfers ?? []}
       fixedPayments={fixedPayments ?? []}
       taxPayments={rangeTaxPayments}

@@ -10,7 +10,7 @@ import { exportFullSystemToExcel } from '@/lib/excel'
 import CashflowBox, { CashflowData } from '@/components/CashflowBox'
 import CashflowHistoryModal from '@/components/CashflowHistoryModal'
 import CashflowAsOfModal from '@/components/CashflowAsOfModal'
-import ChotSoButton, { ChotSoSettings } from '@/components/ChotSoButton'
+import ChotSoButton, { ChotSoSettings, ClosingLog } from '@/components/ChotSoButton'
 import ChuyenTienPanel, { Transfer } from '@/components/ChuyenTienPanel'
 import { fixedPayDate, type FixedItem } from '@/lib/opexFixed'
 
@@ -80,6 +80,7 @@ interface Props {
   }
   cashflow: CashflowData
   chotSo: ChotSoSettings | null
+  closingHistory: ClosingLog[]
   transfers: Transfer[]
   fixedPayments: FixedPayment[]
   taxPayments: TaxPayment[]
@@ -95,7 +96,7 @@ export default function OpexClient({
   fixedCoDinh, fixedNhanSu, payrollTN1, payrollTN2, payrollBhxhNLD, payrollBhxhCTY, ceoBhxh,
   designFreelance, adsCosts, otherCosts, tncnThauPhu, thueBu, vatDauRa, vatDauVao, vatMethod,
   profitTable, taxTable,
-  cashflow, chotSo, transfers,
+  cashflow, chotSo, closingHistory, transfers,
   fixedPayments, taxPayments,
   backupData,
 }: Props) {
@@ -466,7 +467,7 @@ export default function OpexClient({
         <div className="flex items-center justify-end gap-2">
           <CashflowHistoryModal />
           <CashflowAsOfModal />
-          <ChotSoButton initial={chotSo} />
+          <ChotSoButton initial={chotSo} history={closingHistory} />
         </div>
         <CashflowBox cashflow={cashflow} />
         <ChuyenTienPanel initial={transfers} />
