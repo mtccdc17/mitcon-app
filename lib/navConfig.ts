@@ -18,6 +18,7 @@ export const NAV_ITEMS = [
   { href: '/revenue', label: 'Doanh thu', icon: TrendingUp, roles: ['ceo'] },
   { href: '/invoices', label: 'Kiểm Soát Hóa Đơn', icon: FileText, roles: ['ceo', 'ketoan', 'thicong', 'thumua'] },
   { href: '/payables', label: 'Công nợ', icon: Banknote, roles: ['ceo', 'ketoan'] },
+  { href: '/advance-settlement', label: 'Quyết toán tạm ứng', icon: Calculator, roles: ['ceo', 'ketoan', 'thicong'] },
   { href: '/suppliers', label: 'Nhà cung cấp', icon: Users, roles: ['ceo', 'ketoan', 'thicong', 'thumua'] },
   { href: '/payroll', label: 'Bảng lương', icon: Calculator, roles: ['ceo', 'nhansu'] },
   { href: '/hop-dong', label: 'Hợp đồng thầu phụ', icon: FileSignature, roles: ['ceo', 'ketoan', 'nhansu'] },

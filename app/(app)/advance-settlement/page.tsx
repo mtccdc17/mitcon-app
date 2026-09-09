@@ -1,14 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { getUser, getProfile } from '@/lib/supabase/cached'
+import { createClient } from '@/lib/supabase/server'
 import AdvanceSettlementClient from './AdvanceSettlementClient'
 
+const ALLOWED_ROLES = ['ceo', 'ketoan', 'thicong']
+
 export default async function AdvanceSettlementPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role, id').eq('id', user.id).single()
-  if (!profile || profile.role !== 'ceo') redirect('/dashboard')
+  const profile = await getProfile(user.id)
+  if (!profile || !ALLOWED_ROLES.includes(profile.role)) redirect('/dashboard')
+
+  // Chỉ CEO được sửa/xóa/chốt quỹ — kế toán & thi công chỉ theo dõi
+  const canEdit = profile.role === 'ceo'
+
+  const supabase = await createClient()
 
   // Load dữ liệu tạm ứng công trình
   const [
@@ -36,6 +43,7 @@ export default async function AdvanceSettlementPage() {
   return (
     <AdvanceSettlementClient
       userId={user.id}
+      canEdit={canEdit}
       advances={advances ?? []}
       projects={projects ?? []}
       employees={employees ?? []}

@@ -40,12 +40,14 @@ const SETTLE_PREFIX = 'Chốt quỹ ứng'
 
 export default function AdvanceSettlementClient({
   userId,
+  canEdit = true,
   advances,
   projects,
   employees,
   spentByEmployeeProject,
 }: {
   userId: string
+  canEdit?: boolean
   advances: SiteAdvance[]
   projects: Project[]
   employees: Employee[]
@@ -306,12 +308,16 @@ export default function AdvanceSettlementClient({
             <h1 className="text-3xl font-bold text-gray-900">Quyết toán tạm ứng công trình</h1>
             <p className="text-gray-600 mt-1">Chốt tiền tạm ứng và phân bổ vào dòng tiền công trình</p>
           </div>
-          <button
-            onClick={() => { setAddForm(f => ({ ...f, date: new Date().toISOString().split('T')[0] })); setShowAddAdvance(true) }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition"
-          >
-            <Plus size={15} /> Ghi tạm ứng
-          </button>
+          {canEdit ? (
+            <button
+              onClick={() => { setAddForm(f => ({ ...f, date: new Date().toISOString().split('T')[0] })); setShowAddAdvance(true) }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition"
+            >
+              <Plus size={15} /> Ghi tạm ứng
+            </button>
+          ) : (
+            <span className="px-3 py-1.5 bg-gray-100 text-gray-500 text-xs font-medium rounded-lg">Chỉ xem — theo dõi</span>
+          )}
         </div>
 
         {/* Filters */}
@@ -436,18 +442,22 @@ export default function AdvanceSettlementClient({
                           <span className="font-semibold text-gray-900 tabular-nums">
                             {h.amount > 0 ? `+${formatVND(h.amount)}` : `-${formatVND(h.returned)}`}
                           </span>
-                          <button
-                            onClick={() => { setEditingSettlement(h); setEditAmount(String(h.amount)); setEditReturned(String(h.returned)); setEditNote(h.note ?? ''); setEditChannel(h.channel || 'tk_cty'); setEditDate(h.date) }}
-                            className="p-1 text-gray-300 hover:text-blue-600 rounded"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSettlement(h.id)}
-                            className="p-1 text-gray-300 hover:text-red-500 rounded"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          {canEdit && (
+                            <>
+                              <button
+                                onClick={() => { setEditingSettlement(h); setEditAmount(String(h.amount)); setEditReturned(String(h.returned)); setEditNote(h.note ?? ''); setEditChannel(h.channel || 'tk_cty'); setEditDate(h.date) }}
+                                className="p-1 text-gray-300 hover:text-blue-600 rounded"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSettlement(h.id)}
+                                className="p-1 text-gray-300 hover:text-red-500 rounded"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -456,15 +466,17 @@ export default function AdvanceSettlementClient({
               )}
 
               {/* Settle Button */}
-              <div className="bg-gray-100 px-4 py-3 border-t flex justify-end">
-                <button
-                  onClick={() => { setSettleDate(new Date().toISOString().split('T')[0]); setSettling({ empId: emp.empId, empName: emp.empName, projIds: emp.projSummary.map(p => p.projId) }) }}
-                  disabled={emp.totalRemaining === 0}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-lg font-medium text-sm transition"
-                >
-                  Chốt quỹ ứng
-                </button>
-              </div>
+              {canEdit && (
+                <div className="bg-gray-100 px-4 py-3 border-t flex justify-end">
+                  <button
+                    onClick={() => { setSettleDate(new Date().toISOString().split('T')[0]); setSettling({ empId: emp.empId, empName: emp.empName, projIds: emp.projSummary.map(p => p.projId) }) }}
+                    disabled={emp.totalRemaining === 0}
+                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-lg font-medium text-sm transition"
+                  >
+                    Chốt quỹ ứng
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -518,28 +530,30 @@ export default function AdvanceSettlementClient({
                           <span className={done ? 'text-green-600' : 'text-orange-600'}>{formatVND(remaining)}</span>
                         </td>
                         <td className="px-3 py-3">
-                          <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => {
-                                setEditingAdvance(r)
-                                setAdvForm({
-                                  employeeId: r.employee_id ?? '',
-                                  projectId: r.project_id,
-                                  channel: r.channel,
-                                  amount: String(r.amount),
-                                  returned: String(r.returned ?? 0),
-                                  date: r.date,
-                                  note: r.note ?? '',
-                                })
-                              }}
-                              className="p-1 text-gray-300 hover:text-blue-600 rounded"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button onClick={() => handleDeleteAdvance(r.id)} className="p-1 text-gray-300 hover:text-red-500 rounded">
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
+                          {canEdit && (
+                            <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => {
+                                  setEditingAdvance(r)
+                                  setAdvForm({
+                                    employeeId: r.employee_id ?? '',
+                                    projectId: r.project_id,
+                                    channel: r.channel,
+                                    amount: String(r.amount),
+                                    returned: String(r.returned ?? 0),
+                                    date: r.date,
+                                    note: r.note ?? '',
+                                  })
+                                }}
+                                className="p-1 text-gray-300 hover:text-blue-600 rounded"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button onClick={() => handleDeleteAdvance(r.id)} className="p-1 text-gray-300 hover:text-red-500 rounded">
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )
