@@ -873,8 +873,8 @@ export default function AdvanceSettlementClient({
 
       {/* Chi tiết đã chi từ quỹ của 1 công trình */}
       {spentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setSpentModal(null)}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setSpentModal(null)}>
+          <div className="bg-white rounded-lg shadow-2xl ring-1 ring-black/5 w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
               <div>
                 <h3 className="text-base font-semibold text-gray-900">Chi tiết đã chi từ quỹ</h3>
