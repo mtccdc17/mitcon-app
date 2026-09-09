@@ -30,6 +30,16 @@ interface Employee {
   name: string
 }
 
+export interface SpentItem {
+  id: string
+  date: string
+  description: string
+  category_name: string | null
+  supplier: string | null
+  is_labor: boolean
+  amount: number
+}
+
 const CH_LABEL: Record<string, string> = {
   tk_cty: 'TK Công ty',
   tk_cn: 'TK Cá nhân',
@@ -45,6 +55,7 @@ export default function AdvanceSettlementClient({
   projects,
   employees,
   spentByEmployeeProject,
+  spentItemsByEmployeeProject = {},
 }: {
   userId: string
   canEdit?: boolean
@@ -52,6 +63,7 @@ export default function AdvanceSettlementClient({
   projects: Project[]
   employees: Employee[]
   spentByEmployeeProject: Record<string, Record<string, number>>
+  spentItemsByEmployeeProject?: Record<string, Record<string, SpentItem[]>>
 }) {
   const router = useRouter()
   const [filterEmployee, setFilterEmployee] = useState<string>('')
@@ -63,6 +75,14 @@ export default function AdvanceSettlementClient({
   const [saving, setSaving] = useState(false)
   const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
   const [settledOpenFor, setSettledOpenFor] = useState<string | null>(null)
+  // Công trình đang mở xem chi tiết khoản đã chi — key = `${empId}:${projId}`
+  const [spentOpenFor, setSpentOpenFor] = useState<Set<string>>(new Set())
+  const toggleSpentOpen = (key: string) =>
+    setSpentOpenFor(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
   const [editingSettlement, setEditingSettlement] = useState<SiteAdvance | null>(null)
   const [editAmount, setEditAmount] = useState('')
   const [editReturned, setEditReturned] = useState('')
@@ -392,25 +412,59 @@ export default function AdvanceSettlementClient({
               {(() => {
                 const active = emp.projSummary.filter(p => p.remaining !== 0)
                 const settled = emp.projSummary.filter(p => p.remaining === 0)
-                const renderProj = (proj: typeof emp.projSummary[number]) => (
-                  <div key={proj.projId} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="font-medium text-gray-900">{proj.name}</p>
+                const renderProj = (proj: typeof emp.projSummary[number]) => {
+                  const spentItems = spentItemsByEmployeeProject[emp.empId]?.[proj.projId] ?? []
+                  const spentKey = `${emp.empId}:${proj.projId}`
+                  const spentOpen = spentOpenFor.has(spentKey)
+                  return (
+                    <div key={proj.projId} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-medium text-gray-900">{proj.name}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-bold text-lg ${proj.remaining < 0 ? 'text-red-600' : proj.remaining > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                            {formatVND(proj.remaining)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`font-bold text-lg ${proj.remaining < 0 ? 'text-red-600' : proj.remaining > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                          {formatVND(proj.remaining)}
-                        </p>
+                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                        <div>Ứng: <span className="font-medium text-gray-900">{formatVND(proj.totalAdvanced)}</span></div>
+                        <div>
+                          Chi: <span className="font-medium text-gray-900">{formatVND(proj.spent)}</span>
+                          {spentItems.length > 0 && (
+                            <button
+                              onClick={() => toggleSpentOpen(spentKey)}
+                              className="ml-1.5 text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {spentOpen ? '▾ ẩn' : `▸ ${spentItems.length} khoản`}
+                            </button>
+                          )}
+                        </div>
+                        <div>Hoàn: <span className="font-medium text-gray-900">{formatVND(proj.totalReturned)}</span></div>
                       </div>
+
+                      {spentOpen && spentItems.length > 0 && (
+                        <div className="mt-2 border-t border-gray-200 pt-2 space-y-1">
+                          {spentItems.map(it => (
+                            <div key={it.id} className="flex items-start gap-2 text-xs">
+                              <span className="text-gray-400 tabular-nums w-16 shrink-0">
+                                {new Date(it.date + 'T00:00:00').toLocaleDateString('vi-VN')}
+                              </span>
+                              <span className="flex-1 min-w-0 text-gray-700">
+                                {it.description || '(không mô tả)'}
+                                {it.category_name && <span className="text-gray-400"> · {it.category_name}</span>}
+                                {it.is_labor && <span className="text-purple-500"> · Nhân công</span>}
+                                {it.supplier && <span className="text-gray-400"> · {it.supplier}</span>}
+                              </span>
+                              <span className="font-medium text-gray-900 tabular-nums whitespace-nowrap">{formatVND(it.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
-                      <div>Ứng: <span className="font-medium text-gray-900">{formatVND(proj.totalAdvanced)}</span></div>
-                      <div>Chi: <span className="font-medium text-gray-900">{formatVND(proj.spent)}</span></div>
-                      <div>Hoàn: <span className="font-medium text-gray-900">{formatVND(proj.totalReturned)}</span></div>
-                    </div>
-                  </div>
-                )
+                  )
+                }
                 return (
                   <div className="p-4 space-y-3">
                     {active.length > 0 ? active.map(renderProj) : (
