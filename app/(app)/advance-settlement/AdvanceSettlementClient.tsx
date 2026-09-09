@@ -88,7 +88,8 @@ export default function AdvanceSettlementClient({
   const byEmployee = employees
     .map(emp => {
       const empAdvances = advances.filter(a => a.employee_id === emp.id)
-      if (empAdvances.length === 0) return null
+      const spentProjIds = Object.keys(spentByEmployeeProject[emp.id] ?? {}).filter(id => id !== 'unknown')
+      if (empAdvances.length === 0 && spentProjIds.length === 0) return null
 
       // Nhóm theo project
       const byProject = empAdvances.reduce(
@@ -101,6 +102,17 @@ export default function AdvanceSettlementClient({
         },
         {} as Record<string, { name: string; advances: SiteAdvance[] }>
       )
+
+      // Công trình GS đã chi từ quỹ nhưng CHƯA ghi khoản ứng nào (ứng = 0) —
+      // vẫn phải hiện để chốt (công ty đang nợ GS phần chi vượt).
+      for (const projId of spentProjIds) {
+        if (!byProject[projId]) {
+          byProject[projId] = {
+            name: projects.find(p => p.id === projId)?.name ?? '(không rõ công trình)',
+            advances: [],
+          }
+        }
+      }
 
       // Tính tổng cho từng project
       const projSummary = Object.entries(byProject).map(([projId, { name, advances: projAdvances }]) => {
