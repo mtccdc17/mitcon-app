@@ -75,14 +75,10 @@ export default function AdvanceSettlementClient({
   const [saving, setSaving] = useState(false)
   const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
   const [settledOpenFor, setSettledOpenFor] = useState<string | null>(null)
-  // Công trình đang mở xem chi tiết khoản đã chi — key = `${empId}:${projId}`
-  const [spentOpenFor, setSpentOpenFor] = useState<Set<string>>(new Set())
-  const toggleSpentOpen = (key: string) =>
-    setSpentOpenFor(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
+  // Popup xem chi tiết các khoản đã chi từ quỹ của 1 công trình
+  const [spentModal, setSpentModal] = useState<
+    { empName: string; projName: string; spent: number; items: SpentItem[] } | null
+  >(null)
   const [editingSettlement, setEditingSettlement] = useState<SiteAdvance | null>(null)
   const [editAmount, setEditAmount] = useState('')
   const [editReturned, setEditReturned] = useState('')
@@ -414,10 +410,13 @@ export default function AdvanceSettlementClient({
                 const settled = emp.projSummary.filter(p => p.remaining === 0)
                 const renderProj = (proj: typeof emp.projSummary[number]) => {
                   const spentItems = spentItemsByEmployeeProject[emp.empId]?.[proj.projId] ?? []
-                  const spentKey = `${emp.empId}:${proj.projId}`
-                  const spentOpen = spentOpenFor.has(spentKey)
+                  const clickable = spentItems.length > 0
                   return (
-                    <div key={proj.projId} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <div
+                      key={proj.projId}
+                      onClick={clickable ? () => setSpentModal({ empName: emp.empName, projName: proj.name, spent: proj.spent, items: spentItems }) : undefined}
+                      className={`border border-gray-200 rounded-lg p-3 bg-gray-50 ${clickable ? 'cursor-pointer hover:bg-gray-100 hover:border-gray-300 transition' : ''}`}
+                    >
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <p className="font-medium text-gray-900">{proj.name}</p>
@@ -432,36 +431,12 @@ export default function AdvanceSettlementClient({
                         <div>Ứng: <span className="font-medium text-gray-900">{formatVND(proj.totalAdvanced)}</span></div>
                         <div>
                           Chi: <span className="font-medium text-gray-900">{formatVND(proj.spent)}</span>
-                          {spentItems.length > 0 && (
-                            <button
-                              onClick={() => toggleSpentOpen(spentKey)}
-                              className="ml-1.5 text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {spentOpen ? '▾ ẩn' : `▸ ${spentItems.length} khoản`}
-                            </button>
+                          {clickable && (
+                            <span className="ml-1.5 text-blue-600">▸ {spentItems.length} khoản</span>
                           )}
                         </div>
                         <div>Hoàn: <span className="font-medium text-gray-900">{formatVND(proj.totalReturned)}</span></div>
                       </div>
-
-                      {spentOpen && spentItems.length > 0 && (
-                        <div className="mt-2 border-t border-gray-200 pt-2 space-y-1">
-                          {spentItems.map(it => (
-                            <div key={it.id} className="flex items-start gap-2 text-xs">
-                              <span className="text-gray-400 tabular-nums w-16 shrink-0">
-                                {new Date(it.date + 'T00:00:00').toLocaleDateString('vi-VN')}
-                              </span>
-                              <span className="flex-1 min-w-0 text-gray-700">
-                                {it.description || '(không mô tả)'}
-                                {it.category_name && <span className="text-gray-400"> · {it.category_name}</span>}
-                                {it.is_labor && <span className="text-purple-500"> · Nhân công</span>}
-                                {it.supplier && <span className="text-gray-400"> · {it.supplier}</span>}
-                              </span>
-                              <span className="font-medium text-gray-900 tabular-nums whitespace-nowrap">{formatVND(it.amount)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   )
                 }
@@ -891,6 +866,40 @@ export default function AdvanceSettlementClient({
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium">
                 {saving ? '...' : 'Lưu'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chi tiết đã chi từ quỹ của 1 công trình */}
+      {spentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setSpentModal(null)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Chi tiết đã chi từ quỹ</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {spentModal.projName} · Quỹ {spentModal.empName} · {spentModal.items.length} khoản ·
+                  {' '}Tổng <strong className="text-blue-700">{formatVND(spentModal.spent)}</strong>
+                </p>
+              </div>
+              <button onClick={() => setSpentModal(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="overflow-y-auto divide-y divide-gray-50">
+              {spentModal.items.map(it => (
+                <div key={it.id} className="px-5 py-3 flex items-start gap-3">
+                  <span className="text-xs text-gray-400 tabular-nums w-20 shrink-0">
+                    {new Date(it.date + 'T00:00:00').toLocaleDateString('vi-VN')}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-800">{it.description || '(không mô tả)'}</span>
+                    {it.category_name && <span className="ml-2 text-xs text-gray-400">{it.category_name}</span>}
+                    {it.is_labor && <span className="ml-1.5 text-xs text-purple-500">· Nhân công</span>}
+                    {it.supplier && <span className="ml-1.5 text-xs text-gray-400">· {it.supplier}</span>}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatVND(it.amount)}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
