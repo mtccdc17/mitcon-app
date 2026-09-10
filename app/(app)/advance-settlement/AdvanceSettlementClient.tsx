@@ -68,6 +68,10 @@ export default function AdvanceSettlementClient({
   const router = useRouter()
   const [filterEmployee, setFilterEmployee] = useState<string>('')
   const [filterProject, setFilterProject] = useState<string>('')
+  // Bộ lọc riêng cho bảng "Lịch sử toàn bộ tạm ứng công trình" — để rà soát
+  const [histProject, setHistProject] = useState<string>('')
+  const [histEmployee, setHistEmployee] = useState<string>('')
+  const [histMonth, setHistMonth] = useState<string>('')
   const [settling, setSettling] = useState<{ empId: string; empName: string; projIds: string[] } | null>(null)
   const [settleNote, setSettleNote] = useState('')
   const [settleChannel, setSettleChannel] = useState('tk_cty')
@@ -171,12 +175,21 @@ export default function AdvanceSettlementClient({
     }))
     .filter(emp => emp.projSummary.length > 0)
 
-  // Lịch sử toàn bộ tạm ứng công trình (mọi khoản, kể cả chưa gán giám sát) — theo bộ lọc trên
+  // Lịch sử toàn bộ tạm ứng công trình (mọi khoản, kể cả chưa gán giám sát) — có bộ lọc riêng
+  const histMonthOptions = Array.from(
+    new Set((advances ?? []).map(a => (a.date ?? '').slice(0, 7)).filter(Boolean))
+  ).sort((a, b) => (a < b ? 1 : -1))
+
   const filteredAdvances = advances
-    .filter(a => !filterEmployee || a.employee_id === filterEmployee)
-    .filter(a => !filterProject || a.project_id === filterProject)
+    .filter(a =>
+      !histEmployee || (histEmployee === '__none__' ? !a.employee_id : a.employee_id === histEmployee)
+    )
+    .filter(a => !histProject || a.project_id === histProject)
+    .filter(a => !histMonth || (a.date ?? '').slice(0, 7) === histMonth)
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : -1))
+
+  const histFilterActive = !!(histEmployee || histProject || histMonth)
 
   async function handleSettle() {
     if (!settling) return
@@ -535,8 +548,59 @@ export default function AdvanceSettlementClient({
             <h3 className="text-sm font-semibold text-gray-800">Lịch sử toàn bộ tạm ứng công trình</h3>
             <p className="text-xs text-gray-500 mt-0.5">Ứng = tiền RA khỏi kênh nguồn · {filteredAdvances.length} khoản</p>
           </div>
+
+          {/* Bộ lọc rà soát */}
+          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1">Công trình</label>
+              <select
+                value={histProject}
+                onChange={e => setHistProject(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Tất cả</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1">Giám sát</label>
+              <select
+                value={histEmployee}
+                onChange={e => setHistEmployee(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Tất cả</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                <option value="__none__">— Chưa gán —</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1">Tháng ứng</label>
+              <select
+                value={histMonth}
+                onChange={e => setHistMonth(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Tất cả</option>
+                {histMonthOptions.map(m => {
+                  const [y, mo] = m.split('-')
+                  return <option key={m} value={m}>{`Tháng ${Number(mo)}/${y}`}</option>
+                })}
+              </select>
+            </div>
+            {histFilterActive && (
+              <button
+                onClick={() => { setHistProject(''); setHistEmployee(''); setHistMonth('') }}
+                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg"
+              >
+                Xóa lọc
+              </button>
+            )}
+          </div>
           {filteredAdvances.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-gray-400 text-center italic">Chưa có khoản tạm ứng nào.</p>
+            <p className="px-5 py-8 text-sm text-gray-400 text-center italic">
+              {histFilterActive ? 'Không có khoản nào khớp bộ lọc.' : 'Chưa có khoản tạm ứng nào.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
